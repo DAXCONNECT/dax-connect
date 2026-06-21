@@ -895,7 +895,8 @@ function openPublishModal(){
   pendingMedia.length=0;sondageOpts.splice(0,sondageOpts.length,'','');
   document.getElementById('pub-user-info').innerHTML=`${avatarHTML(CU,36)}<div><div style="font-size:13px;font-weight:600">${CU.name}</div><div style="font-size:11px;color:var(--text2)">${CU.quartier||'Dax'}</div></div>`;
   const quartiers=['ville',...QUARTIERS_GEO.map(q=>q.name)];
-  document.getElementById('scope-picker').innerHTML=quartiers.map(q=>`<button class="scope-btn${postScope===q?' active':''}" onclick="setScope('${q}')"><i class="ti ${q==='ville'?'ti-building-community':'ti-map-pin'}" style="font-size:11px"></i>${q==='ville'?'Tout Dax':q}</button>`).join('');
+  document.getElementById('scope-picker').innerHTML=quartiers.map((q,i)=>`<button class="scope-btn${postScope===q?' active':''}" onclick="setScope(${i})" data-scope="${q}"><i class="ti ${q==='ville'?'ti-building-community':'ti-map-pin'}" style="font-size:11px"></i>${q==='ville'?'Tout Dax':q}</button>`).join('');
+  window._scopes=quartiers;
   renderPubCats();
   document.getElementById('pub-text').value='';
   document.getElementById('pub-event-input').min=new Date().toISOString().split('T')[0];
@@ -907,11 +908,10 @@ function openPublishModal(){
 }
 function closePublishModal(){document.getElementById('modal-publish').style.display='none';pendingMedia.length=0;}
 
-function setScope(s){
-  postScope=s;
-  document.querySelectorAll('#scope-picker .scope-btn').forEach(b=>{
-    const val=b.textContent.trim()==='Tout Dax'?'ville':b.textContent.trim();
-    b.classList.toggle('active',val===s);
+function setScope(idx){
+  postScope=window._scopes[idx];
+  document.querySelectorAll('#scope-picker .scope-btn').forEach((b,i)=>{
+    b.classList.toggle('active',i===idx);
   });
 }
 
