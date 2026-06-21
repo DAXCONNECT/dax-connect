@@ -901,10 +901,11 @@ function renderPost(p){
   let acts='';
   if(CU){
     const del=canMod()?`<button class="act-btn mod" onclick="delPost(${p.id})" title="Supprimer"><i class="ti ti-trash"></i></button>`:'';
+    const edit=CU.id===p.authorId?`<button class="act-btn" onclick="editPost(${p.id})" title="Modifier"><i class="ti ti-pencil"></i></button>`:'';
     acts=`<button class="act-btn${p.liked?' liked':''}" onclick="togLike(${p.id})"><i class="ti ti-heart"></i> ${p.likes}</button>
     <button class="act-btn" onclick="togCom(${p.id})"><i class="ti ti-message-circle"></i> ${p.comments.length}</button>
     <button class="act-btn" onclick="openMP('${p.authorId}')"><i class="ti ti-message"></i> MP</button>
-    <button class="act-btn"><i class="ti ti-share"></i></button>${del}`;
+    ${edit}${del}`;
   }else{
     acts=`<div class="tip-wrap"><button class="act-btn locked" onclick="showScreen('register')"><i class="ti ti-heart"></i> ${p.likes}</button><span class="tip">Connecte-toi</span></div>
     <div class="tip-wrap"><button class="act-btn locked" onclick="showScreen('register')"><i class="ti ti-message-circle"></i> ${p.comments.length}</button><span class="tip">Connecte-toi</span></div>
@@ -926,7 +927,7 @@ function renderPost(p){
         <div class="post-expiry${exp.soon?' soon':''}"><i class="ti ti-clock" style="font-size:10px"></i>${exp.label}</div>
       </div>
     </div>
-    ${p.text?`<div class="post-text">${p.text}</div>`:''}
+    ${p.editing?`<div style="display:flex;flex-direction:column;gap:6px"><textarea class="compose-input" id="edit-${p.id}" style="min-height:50px">${p.text}</textarea><div style="display:flex;gap:5px;justify-content:flex-end"><button class="abtn" onclick="cancelEdit(${p.id})">Annuler</button><button class="post-btn" style="font-size:11px;padding:4px 12px" onclick="saveEdit(${p.id})"><i class="ti ti-check" style="font-size:11px"></i> Enregistrer</button></div></div>`:p.text?`<div class="post-text">${p.text}</div>`:''}
     ${sondageHTML(p)}
     ${mediaLayout(p.media)}
     <div class="post-actions">${acts}</div>
@@ -940,6 +941,9 @@ function togCom(id){if(!CU){showScreen('register');return;}const p=POSTS.find(x=
 function sendCom(pid){const inp=document.getElementById('ci-'+pid);if(!inp||!CU)return;const txt=inp.value.trim();if(!txt)return;const p=POSTS.find(x=>x.id===pid);if(!p)return;p.comments.push({id:Date.now(),authorId:CU.id,text:txt,time:'À l\'instant'});saveData();document.getElementById('post-'+pid).outerHTML=renderPost(p);}
 function delPost(id){if(!canMod())return;POSTS=POSTS.filter(p=>p.id!==id);saveData();renderPosts();}
 function delCom(pid,cid){if(!canMod())return;const p=POSTS.find(x=>x.id===pid);if(!p)return;p.comments=p.comments.filter(c=>c.id!==cid);saveData();document.getElementById('post-'+pid).outerHTML=renderPost(p);}
+function editPost(id){const p=POSTS.find(x=>x.id===id);if(!p||!CU||CU.id!==p.authorId)return;p.editing=true;document.getElementById('post-'+id).outerHTML=renderPost(p);}
+function saveEdit(id){const p=POSTS.find(x=>x.id===id);if(!p)return;const ta=document.getElementById('edit-'+id);if(ta)p.text=ta.value.trim();p.editing=false;p.time='Modifié';saveData();document.getElementById('post-'+id).outerHTML=renderPost(p);}
+function cancelEdit(id){const p=POSTS.find(x=>x.id===id);if(!p)return;p.editing=false;document.getElementById('post-'+id).outerHTML=renderPost(p);}
 
 function publishPost(){
   const txt=(document.getElementById('ctxt')||{value:''}).value.trim();
