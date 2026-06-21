@@ -666,7 +666,8 @@ input[type=file]{display:none}
 
 <script>
 const DAX_POSTCODES=['40100'];
-const ANTHROPIC_API_KEY=''; // ← Mets ta clé API ici (sk-ant-...)
+const ANTHROPIC_API_KEY='';
+const UPLOAD_URL='https://dax-connect-upload.soft-thunder-8010.workers.dev/upload';
 let CU=null,selectedDur='24h',targetUid=null,selectedCat='info',fwType='bug',activeConvId=null,addrTimer=null,registeredFPs=[],currentFP='',pendingAvatar=null;
 const pendingMedia=[],sondageOpts=['',''];
 
@@ -955,32 +956,21 @@ async function addMedia(input,type){
   const files=Array.from(input.files);input.value='';
   for(const f of files){
     const url=URL.createObjectURL(f);
-    const b64url=await compressMedia(f,type);
-    const item={type,url,b64url,file:f,aiState:type==='image'?'checking':'ok',aiMsg:''};
+    const item={type,url,cloudUrl:null,file:f,aiState:type==='image'?'checking':'ok',aiMsg:''};
     pendingMedia.push(item);renderPreview();
     if(type==='image')await checkAI(item);
+    uploadToR2(item);
   }
   renderPreview();updatePubBtn();
 }
-async function compressMedia(file,type){
-  if(type==='video')return null;
-  return new Promise(r=>{
-    const reader=new FileReader();
-    reader.onload=e=>{
-      const img=new Image();
-      img.onload=()=>{
-        const canvas=document.createElement('canvas');
-        const MAX=600;
-        let w=img.width,h=img.height;
-        if(w>h){if(w>MAX){h=Math.round(h*MAX/w);w=MAX;}}else{if(h>MAX){w=Math.round(w*MAX/h);h=MAX;}}
-        canvas.width=w;canvas.height=h;
-        canvas.getContext('2d').drawImage(img,0,0,w,h);
-        r(canvas.toDataURL('image/jpeg',0.7));
-      };
-      img.src=e.target.result;
-    };
-    reader.readAsDataURL(file);
-  });
+async function uploadToR2(item){
+  try{
+    const form=new FormData();
+    form.append('file',item.file);
+    const r=await fetch(UPLOAD_URL,{method:'POST',body:form});
+    const d=await r.json();
+    if(d.url)item.cloudUrl=d.url;
+  }catch(e){console.warn('Upload R2 failed',e);}
 }
 async function checkAI(item){
   if(!ANTHROPIC_API_KEY){item.aiState='ok';renderPreview();updatePubBtn();return;}
@@ -1134,7 +1124,7 @@ function publishPost(){
   const edInput=document.getElementById('pub-event-input');
   const eventDate=selectedCat==='evenement'&&edInput&&edInput.value?new Date(edInput.value):null;
   const scope=postScope==='ville'?'Tout Dax':postScope;
-  POSTS.unshift({id:Date.now(),authorId:CU.id,rue:CU.quartier||'Dax',time:'À l\'instant',cat:selectedCat,text:txt,media:pendingMedia.map(m=>({type:m.type,url:m.b64url||m.url})),likes:0,liked:false,comments:[],showComments:false,createdAt:new Date(),eventDate,sondage,scope});
+  POSTS.unshift({id:Date.now(),authorId:CU.id,rue:CU.quartier||'Dax',time:'À l\'instant',cat:selectedCat,text:txt,media:pendingMedia.map(m=>({type:m.type,url:m.cloudUrl||m.url})),likes:0,liked:false,comments:[],showComments:false,createdAt:new Date(),eventDate,sondage,scope});
   pendingMedia.length=0;sondageOpts.splice(0,sondageOpts.length,'','');
   closePublishModal();saveData();renderFeed();
 }
@@ -1587,14 +1577,24 @@ function applyCrop(){
   const s=cropState.scale/100;
   ctx.drawImage(img,cropState.x,cropState.y,cropState.baseW*s,cropState.baseH*s);
   const dataUrl=canvas.toDataURL('image/jpeg',0.8);
-  if(cropState.target==='profile'&&CU){
-    CU.avatar=dataUrl;saveData();updateTopAvatar();renderPosts();
-    document.getElementById('profile-menu').classList.remove('open');
-  }else if(cropState.target==='register'){
-    pendingAvatar=dataUrl;
-    const prev=document.getElementById('av-preview');
-    if(prev)prev.innerHTML=`<img src="${dataUrl}" alt="avatar"><div class="avatar-edit-btn" onclick="document.getElementById('av-input').click()"><i class="ti ti-camera" style="font-size:11px"></i></div>`;
-  }
+  canvas.toBlob(async blob=>{
+    let finalUrl=dataUrl;
+    try{
+      const form=new FormData();
+      form.append('file',new File([blob],'avatar.jpg',{type:'image/jpeg'}));
+      const r=await fetch(UPLOAD_URL,{method:'POST',body:form});
+      const d=await r.json();
+      if(d.url)finalUrl=d.url;
+    }catch(e){}
+    if(cropState.target==='profile'&&CU){
+      CU.avatar=finalUrl;saveData();updateTopAvatar();renderPosts();
+      document.getElementById('profile-menu').classList.remove('open');
+    }else if(cropState.target==='register'){
+      pendingAvatar=finalUrl;
+      const prev=document.getElementById('av-preview');
+      if(prev)prev.innerHTML=`<img src="${finalUrl}" alt="avatar"><div class="avatar-edit-btn" onclick="document.getElementById('av-input').click()"><i class="ti ti-camera" style="font-size:11px"></i></div>`;
+    }
+  },'image/jpeg',0.8);
   closeCrop();
 }
 function closeCrop(){document.getElementById('modal-crop').style.display='none';}
