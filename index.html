@@ -325,6 +325,16 @@ input[type=file]{display:none}
 .scope-btn{font-size:11px;padding:4px 10px;border-radius:20px;border:0.5px solid var(--border);background:transparent;cursor:pointer;font-family:inherit;color:var(--text2);display:flex;align-items:center;gap:3px}
 .scope-btn:hover{background:var(--bg3)}
 .scope-btn.active{border-color:var(--red);background:#FCEBEB;color:var(--red);font-weight:500;border-width:1.5px}
+.filter-card{background:var(--bg);border:0.5px solid var(--border);border-radius:var(--radius-lg);padding:10px 12px;display:flex;flex-direction:column;gap:7px}
+.filter-row{display:flex;gap:4px;flex-wrap:wrap;align-items:center}
+.filter-label{font-size:10px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.3px;min-width:50px}
+.filter-btn{font-size:10px;padding:3px 8px;border-radius:20px;border:0.5px solid var(--border);background:transparent;cursor:pointer;font-family:inherit;color:var(--text2);display:flex;align-items:center;gap:2px;white-space:nowrap}
+.filter-btn:hover{background:var(--bg3)}
+.filter-btn.active{border-color:var(--red);background:#FCEBEB;color:var(--red);font-weight:500;border-width:1.5px}
+.search-input{border:0.5px solid var(--border);border-radius:20px;padding:5px 10px 5px 28px;font-size:12px;font-family:inherit;background:var(--bg3);color:var(--text);outline:none;width:100%}
+.search-input:focus{border-color:var(--red)}
+.search-wrap{position:relative}
+.search-wrap i{position:absolute;left:9px;top:50%;transform:translateY(-50%);font-size:13px;color:var(--text3);pointer-events:none}
 .pm-logout:hover{background:#FCEBEB}
 </style>
 </head>
@@ -358,6 +368,7 @@ input[type=file]{display:none}
       <div class="feed">
         <div id="compose-zone"></div>
         <div id="guest-banner"></div>
+        <div id="filter-bar"></div>
         <div id="feed-posts"></div>
       </div>
       <div class="sidebar">
@@ -800,9 +811,50 @@ function updateAvInitials(){
 }
 
 /* ---- COMPOSE ---- */
-function renderFeed(){renderCompose();renderGuestBanner();renderPosts();renderSidebar();}
+function renderFeed(){renderCompose();renderGuestBanner();renderFilters();renderPosts();renderSidebar();}
+
+function renderFilters(){
+  const bar=document.getElementById('filter-bar');if(!bar)return;
+  const quartierBtns=['tous',...QUARTIERS_GEO.map(q=>q.name)].map(q=>
+    `<button class="filter-btn${filterQuartier===q?' active':''}" onclick="setFilter('quartier','${q}')">${q==='tous'?'Tous':q}</button>`
+  ).join('');
+  const catBtns=[{id:'tous',label:'Tous',icon:'ti-list'},...CATS].map(c=>
+    `<button class="filter-btn${filterCat===c.id?' active':''}" onclick="setFilter('cat','${c.id}')"><i class="ti ${c.icon}" style="font-size:10px"></i>${c.label}</button>`
+  ).join('');
+  bar.innerHTML=`<div class="filter-card">
+    <div class="search-wrap"><i class="ti ti-search"></i><input class="search-input" placeholder="Rechercher un post…" value="${filterSearch}" oninput="setFilter('search',this.value)"></div>
+    <div class="filter-row"><span class="filter-label">Quartier</span>${quartierBtns}</div>
+    <div class="filter-row"><span class="filter-label">Thème</span>${catBtns}</div>
+  </div>`;
+}
+
+function setFilter(type,val){
+  if(type==='quartier')filterQuartier=val;
+  else if(type==='cat')filterCat=val;
+  else if(type==='search')filterSearch=val;
+  renderPosts();
+  if(type!=='search')renderFilters();
+}
+
+function getFilteredPosts(){
+  return POSTS.filter(p=>{
+    if(filterQuartier!=='tous'){
+      const au=getU(p.authorId);
+      const postQ=p.scope&&p.scope!=='Tout Dax'?p.scope:au.quartier||'';
+      if(postQ!==filterQuartier)return false;
+    }
+    if(filterCat!=='tous'&&p.cat!==filterCat)return false;
+    if(filterSearch){
+      const s=filterSearch.toLowerCase();
+      const au=getU(p.authorId);
+      if(!p.text.toLowerCase().includes(s)&&!au.name.toLowerCase().includes(s))return false;
+    }
+    return true;
+  });
+}
 
 let postScope='ville';
+let filterQuartier='tous',filterCat='tous',filterSearch='';
 
 function renderCompose(){
   const z=document.getElementById('compose-zone');
@@ -888,8 +940,34 @@ async function correctOrtho(){
 /* ---- MEDIA & AI ---- */
 async function addMedia(input,type){
   const files=Array.from(input.files);input.value='';
-  for(const f of files){const url=URL.createObjectURL(f);const item={type,url,file:f,aiState:type==='image'?'checking':'ok',aiMsg:''};pendingMedia.push(item);renderPreview();if(type==='image')await checkAI(item);}
+  for(const f of files){
+    const url=URL.createObjectURL(f);
+    const b64url=await compressMedia(f,type);
+    const item={type,url,b64url,file:f,aiState:type==='image'?'checking':'ok',aiMsg:''};
+    pendingMedia.push(item);renderPreview();
+    if(type==='image')await checkAI(item);
+  }
   renderPreview();updatePubBtn();
+}
+async function compressMedia(file,type){
+  if(type==='video')return null;
+  return new Promise(r=>{
+    const reader=new FileReader();
+    reader.onload=e=>{
+      const img=new Image();
+      img.onload=()=>{
+        const canvas=document.createElement('canvas');
+        const MAX=600;
+        let w=img.width,h=img.height;
+        if(w>h){if(w>MAX){h=Math.round(h*MAX/w);w=MAX;}}else{if(h>MAX){w=Math.round(w*MAX/h);h=MAX;}}
+        canvas.width=w;canvas.height=h;
+        canvas.getContext('2d').drawImage(img,0,0,w,h);
+        r(canvas.toDataURL('image/jpeg',0.7));
+      };
+      img.src=e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
 }
 async function checkAI(item){
   if(!ANTHROPIC_API_KEY){item.aiState='ok';renderPreview();updatePubBtn();return;}
@@ -1011,7 +1089,11 @@ function renderPost(p){
   </div>`;
 }
 
-function renderPosts(){document.getElementById('feed-posts').innerHTML=POSTS.map(renderPost).join('');}
+function renderPosts(){
+  const filtered=getFilteredPosts();
+  const html=filtered.length?filtered.map(renderPost).join(''):'<div class="card" style="text-align:center;padding:20px;color:var(--text2)"><i class="ti ti-search-off" style="font-size:24px;display:block;margin-bottom:6px;opacity:.3"></i><div style="font-size:13px">Aucun post trouvé</div><div style="font-size:11px;margin-top:3px">Essaie d\'autres filtres</div></div>';
+  document.getElementById('feed-posts').innerHTML=html;
+}
 function togLike(id){if(!CU){showScreen('register');return;}const p=POSTS.find(x=>x.id===id);if(!p)return;p.liked=!p.liked;p.likes+=p.liked?1:-1;saveData();document.getElementById('post-'+id).outerHTML=renderPost(p);}
 function togCom(id){if(!CU){showScreen('register');return;}const p=POSTS.find(x=>x.id===id);if(!p)return;p.showComments=!p.showComments;document.getElementById('post-'+id).outerHTML=renderPost(p);}
 function sendCom(pid){const inp=document.getElementById('ci-'+pid);if(!inp||!CU)return;const txt=inp.value.trim();if(!txt)return;const p=POSTS.find(x=>x.id===pid);if(!p)return;p.comments.push({id:Date.now(),authorId:CU.id,text:txt,time:'À l\'instant'});saveData();document.getElementById('post-'+pid).outerHTML=renderPost(p);}
@@ -1034,7 +1116,7 @@ function publishPost(){
   const edInput=document.getElementById('pub-event-input');
   const eventDate=selectedCat==='evenement'&&edInput&&edInput.value?new Date(edInput.value):null;
   const scope=postScope==='ville'?'Tout Dax':postScope;
-  POSTS.unshift({id:Date.now(),authorId:CU.id,rue:CU.quartier||'Dax',time:'À l\'instant',cat:selectedCat,text:txt,media:pendingMedia.map(m=>({type:m.type,url:m.url})),likes:0,liked:false,comments:[],showComments:false,createdAt:new Date(),eventDate,sondage,scope});
+  POSTS.unshift({id:Date.now(),authorId:CU.id,rue:CU.quartier||'Dax',time:'À l\'instant',cat:selectedCat,text:txt,media:pendingMedia.map(m=>({type:m.type,url:m.b64url||m.url})),likes:0,liked:false,comments:[],showComments:false,createdAt:new Date(),eventDate,sondage,scope});
   pendingMedia.length=0;sondageOpts.splice(0,sondageOpts.length,'','');
   closePublishModal();saveData();renderFeed();
 }
