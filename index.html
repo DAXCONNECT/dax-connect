@@ -346,9 +346,9 @@ input[type=file]{display:none}
       <div class="sidebar">
         <div class="card">
           <div class="side-title">Dax en chiffres</div>
-          <div class="stat-row"><span class="stat-label">Membres actifs</span><span class="stat-val" id="sb-count">5</span></div>
-          <div class="stat-row"><span class="stat-label">Posts ce mois</span><span class="stat-val">84</span></div>
-          <div class="stat-row"><span class="stat-label">Événements</span><span class="stat-val">3</span></div>
+          <div class="stat-row"><span class="stat-label">Membres actifs</span><span class="stat-val" id="sb-count">0</span></div>
+          <div class="stat-row"><span class="stat-label">Posts ce mois</span><span class="stat-val" id="sb-posts">0</span></div>
+          <div class="stat-row"><span class="stat-label">Événements</span><span class="stat-val" id="sb-events-count">0</span></div>
         </div>
         <div id="pub-zone"></div>
         <div class="card"><div class="side-title">Membres actifs</div><div id="sb-members"></div></div>
@@ -967,8 +967,14 @@ function renderSidebar(){
   else if(!CU)pz.innerHTML=`<div class="pub-card" onclick="showScreen('register')"><div class="pub-title"><i class="ti ti-speakerphone"></i> Ta pub ici</div><div class="pub-sub">Inscris-toi pour nous contacter</div></div>`;
   else pz.innerHTML='';
   document.getElementById('sb-count').textContent=USERS.filter(u=>u.status==='active').length;
-  document.getElementById('sb-members').innerHTML=USERS.filter(u=>u.status==='active').slice(0,4).map(u=>`<div class="member-row">${avatarHTML(u,25)}<div><div class="member-name">${u.name}</div><div class="member-sub2"><i class="ti ti-map-pin" style="font-size:10px"></i> ${u.quartier||'Dax'}</div></div></div>`).join('');
-  document.getElementById('sb-events').innerHTML=[{d:'28 juin',n:'Brocante',l:'Pl. Saint-Pierre'},{d:'5 juil.',n:'Ciné plein air',l:'Parc Th. Denis'},{d:'12 juil.',n:'Repas quartier',l:'Salle des fêtes'}].map(e=>`<div class="event-row"><div class="event-date">${e.d}</div><div><div class="event-name">${e.n}</div><div class="event-loc">${e.l}</div></div></div>`).join('');
+  const now=new Date(),moisActuel=now.getMonth(),anneeActuelle=now.getFullYear();
+  const postsCeMois=POSTS.filter(p=>{const d=new Date(p.createdAt);return d.getMonth()===moisActuel&&d.getFullYear()===anneeActuelle;}).length;
+  document.getElementById('sb-posts').textContent=postsCeMois;
+  const evtsFuturs=POSTS.filter(p=>p.cat==='evenement'&&p.eventDate&&new Date(p.eventDate)>=now);
+  document.getElementById('sb-events-count').textContent=evtsFuturs.length;
+  document.getElementById('sb-members').innerHTML=USERS.filter(u=>u.status==='active').slice(0,4).map(u=>`<div class="member-row">${avatarHTML(u,25)}<div><div class="member-name">${u.name}</div><div class="member-sub2"><i class="ti ti-map-pin" style="font-size:10px"></i> ${u.quartier||'Dax'}</div></div></div>`).join('')||'<div style="font-size:11px;color:var(--text2)">Aucun membre pour le moment.</div>';
+  const evtsList=evtsFuturs.map(p=>({d:new Date(p.eventDate).toLocaleDateString('fr-FR',{day:'numeric',month:'short'}),n:p.text.substring(0,30),l:getU(p.authorId).quartier||'Dax'}));
+  document.getElementById('sb-events').innerHTML=evtsList.length?evtsList.map(e=>`<div class="event-row"><div class="event-date">${e.d}</div><div><div class="event-name">${e.n}</div><div class="event-loc">${e.l}</div></div></div>`).join(''):'<div style="font-size:11px;color:var(--text2)">Aucun événement à venir.</div>';
 }
 
 /* ---- REGLES ---- */
