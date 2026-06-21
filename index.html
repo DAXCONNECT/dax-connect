@@ -401,9 +401,8 @@ input[type=file]{display:none}
       <button class="gbtn gbtn-f" onclick="showScreen('register')">S'inscrire</button>
     </div>
     <div class="tb-feed" id="tb-feed">
-      <button class="icon-btn" onclick="navTo('feedback')"><i class="ti ti-message-report"></i></button>
+      <button class="icon-btn" onclick="toggleSearch()"><i class="ti ti-search"></i></button>
       <button class="icon-btn" onclick="navTo('mp')"><i class="ti ti-message"></i><span class="notif-dot" id="mp-dot" style="display:none">2</span></button>
-      <button class="icon-btn"><i class="ti ti-bell"></i></button>
       <div id="top-av-wrap" style="position:relative"></div>
       <div class="profile-menu" id="profile-menu"></div>
     </div>
@@ -420,10 +419,7 @@ input[type=file]{display:none}
   <div class="screen visible" id="screen-feed">
     <div class="main">
       <div class="feed">
-        <div style="display:flex;gap:8px;align-items:center">
-          <div style="flex:1" id="compose-zone"></div>
-          <button class="search-toggle" onclick="toggleSearch()" title="Rechercher"><i class="ti ti-search"></i></button>
-        </div>
+        <div id="compose-zone"></div>
         <div class="search-bar" id="search-bar">
           <div class="search-wrap"><i class="ti ti-search"></i><input class="search-input" id="search-input" placeholder="Rechercher un post…" oninput="setFilter('search',this.value)"></div>
           <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:6px" id="filter-cats"></div>
@@ -894,9 +890,10 @@ function updateAvInitials(){
 function renderFeed(){renderCompose();renderFilters();renderPosts();}
 
 function toggleSearch(){
+  if(!document.getElementById('screen-feed').classList.contains('visible'))navTo('feed');
   const bar=document.getElementById('search-bar');
   bar.classList.toggle('open');
-  if(bar.classList.contains('open'))document.getElementById('search-input').focus();
+  if(bar.classList.contains('open'))setTimeout(()=>document.getElementById('search-input').focus(),100);
 }
 
 function renderFilters(){
