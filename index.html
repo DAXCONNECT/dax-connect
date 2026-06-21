@@ -1075,8 +1075,8 @@ function renderGuestBanner(){
 /* ---- POSTS ---- */
 function mediaLayout(media){
   if(!media||!media.length)return'';
-  if(media.length===1)return`<div class="post-media-single">${media[0].type==='video'?`<video src="${media[0].url}" controls playsinline preload="metadata" style="width:100%;max-height:230px;border-radius:8px;display:block"></video>`:`<img src="${media[0].url}" alt="media" loading="lazy" onclick="openLightbox(this.src)">`}</div>`;
-  return`<div class="post-media-duo">${media.map(m=>m.type==='video'?`<video src="${m.url}" preload="metadata" controls playsinline style="width:100%;height:135px;object-fit:cover;border-radius:8px;display:block"></video>`:`<img src="${m.url}" alt="media" loading="lazy" onclick="openLightbox(this.src)">`).join('')}</div>`;
+  if(media.length===1)return`<div class="post-media-single">${media[0].type==='video'?`<video src="${media[0].url}#t=0.1" controls playsinline preload="auto" style="width:100%;max-height:230px;border-radius:8px;display:block;background:#000"></video>`:`<img src="${media[0].url}" alt="media" loading="lazy" onclick="openLightbox(this.src)">`}</div>`;
+  return`<div class="post-media-duo">${media.map(m=>m.type==='video'?`<video src="${m.url}#t=0.1" preload="auto" controls playsinline style="width:100%;height:135px;object-fit:cover;border-radius:8px;display:block;background:#000"></video>`:`<img src="${m.url}" alt="media" loading="lazy" onclick="openLightbox(this.src)">`).join('')}</div>`;
 }
 function openLightbox(src){
   document.getElementById('lightbox-img').src=src;
