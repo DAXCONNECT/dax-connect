@@ -1165,6 +1165,18 @@ let mpTab='conv',savedMessages=[];
 function loadSaved(){try{const s=localStorage.getItem('dc_saved');if(s)savedMessages=JSON.parse(s);}catch(e){}}
 function saveSaved(){localStorage.setItem('dc_saved',JSON.stringify(savedMessages));}
 
+async function updateUnreadBadge(){
+  if(!CU)return;
+  try{
+    const res=await api('/unread?userId='+CU.id);
+    const count=res.count||0;
+    const dot=document.getElementById('mp-dot');
+    if(dot){dot.style.display=count?'flex':'none';dot.textContent=count;}
+    const navMp=document.getElementById('nav-mp');
+    if(navMp){navMp.innerHTML=count?`<i class="ti ti-message"></i>Messages <span style="background:var(--red);color:#fff;font-size:8px;padding:1px 4px;border-radius:8px;margin-left:2px">${count}</span>`:`<i class="ti ti-message"></i>Messages`;}
+  }catch(e){}
+}
+
 function openMP(toId){if(!CU){showScreen('register');return;}if(toId===CU.id)return;let c=CONVS.find(x=>x.withId===toId);if(!c){c={id:'c'+Date.now(),withId:toId,unread:false,messages:[]};CONVS.push(c);}activeConvId=c.id;mpTab='conv';navTo('mp');}
 
 function setMPTab(tab){mpTab=tab;renderMP();}
@@ -1190,7 +1202,7 @@ function renderMP(){
     </div>`;}).join('');
   if(activeConvId){const c=CONVS.find(x=>x.id===activeConvId);if(c){c.unread=false;renderChat(c);}}
 }
-function selConv(id){activeConvId=id;const c=CONVS.find(x=>x.id===id);if(c){c.unread=false;}renderMP();}
+function selConv(id){activeConvId=id;const c=CONVS.find(x=>x.id===id);if(c){c.unread=0;api('/conversations/'+id,'PUT');}renderMP();updateUnreadBadge();}
 function renderChat(conv){
   const o=getU(conv.withId);
   document.getElementById('mp-chat-area').innerHTML=`
@@ -1730,6 +1742,7 @@ function enterFeedSilent(){
   document.getElementById('tb-auth').style.display='none';document.getElementById('tb-feed').style.display='flex';
   updateTopAvatar();
   if(CU.role==='creator')document.getElementById('nav-admin').style.display='flex';
+  updateUnreadBadge();
   navTo('feed');
 }
 
@@ -1742,7 +1755,7 @@ function enterFeedSilent(){
   renderFeed();
   renderRegles();
   buildFP();
-  setInterval(async()=>{autoExpire();await loadData();if(document.getElementById('screen-feed').classList.contains('visible'))renderPosts();},30000);
+  setInterval(async()=>{autoExpire();await loadData();updateUnreadBadge();if(document.getElementById('screen-feed').classList.contains('visible'))renderPosts();},30000);
 })();
 </script>
 </body>
