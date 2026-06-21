@@ -713,12 +713,42 @@ function getQuartier(lng,lat){
 }
 
 /* ---- PERSISTENCE localStorage ---- */
+function cleanPostsForSave(posts){
+  return posts.map(p=>{
+    const clean={...p};
+    if(clean.media)clean.media=clean.media.map(m=>{
+      if(m.url&&m.url.startsWith('blob:'))return{type:m.type,url:m.cloudUrl||''};
+      if(m.url&&m.url.startsWith('data:')&&m.cloudUrl)return{type:m.type,url:m.cloudUrl};
+      return{type:m.type,url:m.url||''};
+    });
+    delete clean.editing;
+    delete clean.showComments;
+    return clean;
+  });
+}
 function saveData(){
-  localStorage.setItem('dc_users',JSON.stringify(USERS));
-  localStorage.setItem('dc_posts',JSON.stringify(POSTS));
-  localStorage.setItem('dc_convs',JSON.stringify(CONVS));
-  localStorage.setItem('dc_modlog',JSON.stringify(MOD_LOG));
-  localStorage.setItem('dc_fps',JSON.stringify(registeredFPs));
+  try{
+    const cleanUsers=USERS.map(u=>{
+      const cu={...u};
+      if(cu.avatar&&cu.avatar.startsWith('data:')&&cu.avatar.length>5000)cu.avatar=null;
+      return cu;
+    });
+    localStorage.setItem('dc_users',JSON.stringify(cleanUsers));
+    localStorage.setItem('dc_posts',JSON.stringify(cleanPostsForSave(POSTS)));
+    localStorage.setItem('dc_convs',JSON.stringify(CONVS));
+    localStorage.setItem('dc_modlog',JSON.stringify(MOD_LOG));
+    localStorage.setItem('dc_fps',JSON.stringify(registeredFPs));
+  }catch(e){
+    console.error('Erreur sauvegarde localStorage',e);
+    if(e.name==='QuotaExceededError'){
+      alert('Stockage local plein ! Les anciennes données ont été nettoyées.');
+      try{
+        const oldPosts=POSTS.splice(Math.max(POSTS.length-20,0));
+        POSTS.length=0;POSTS.push(...oldPosts);
+        localStorage.setItem('dc_posts',JSON.stringify(cleanPostsForSave(POSTS)));
+      }catch(e2){}
+    }
+  }
 }
 function loadData(){
   try{
@@ -728,7 +758,7 @@ function loadData(){
     const m=localStorage.getItem('dc_modlog');
     const f=localStorage.getItem('dc_fps');
     if(u)USERS.splice(0,USERS.length,...JSON.parse(u));
-    if(p){const parsed=JSON.parse(p);parsed.forEach(x=>{x.createdAt=new Date(x.createdAt);if(x.eventDate)x.eventDate=new Date(x.eventDate);});POSTS.splice(0,POSTS.length,...parsed);}
+    if(p){const parsed=JSON.parse(p);parsed.forEach(x=>{x.createdAt=new Date(x.createdAt);if(x.eventDate)x.eventDate=new Date(x.eventDate);x.showComments=false;});POSTS.splice(0,POSTS.length,...parsed);}
     if(c)CONVS.splice(0,CONVS.length,...JSON.parse(c));
     if(m)MOD_LOG.splice(0,MOD_LOG.length,...JSON.parse(m));
     if(f)registeredFPs=JSON.parse(f);
