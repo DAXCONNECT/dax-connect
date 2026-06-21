@@ -920,6 +920,9 @@ document.addEventListener('click',function(e){
   if(bar.contains(e.target))return;
   if(e.target.closest('.icon-btn')&&e.target.closest('.icon-btn').querySelector('.ti-search'))return;
   bar.classList.remove('open');
+  filterQuartier='tous';filterCat='tous';filterSearch='';
+  const si=document.getElementById('search-input');if(si)si.value='';
+  renderPosts();renderFilters();
 });
 
 function renderFilters(){
