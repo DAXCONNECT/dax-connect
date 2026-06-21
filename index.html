@@ -342,6 +342,26 @@ input[type=file]{display:none}
 .lightbox-close:hover{background:rgba(255,255,255,0.3)}
 .post-media-single img,.post-media-duo img{cursor:zoom-in}
 .pm-logout:hover{background:#FCEBEB}
+.search-toggle{width:32px;height:32px;border-radius:50%;border:0.5px solid var(--border);background:var(--bg);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:15px;color:var(--text2)}
+.search-toggle:hover{background:var(--bg3)}
+.search-bar{display:none;padding:8px 12px;background:var(--bg);border:0.5px solid var(--border);border-radius:var(--radius-lg)}
+.search-bar.open{display:block}
+@media(max-width:600px){
+  .sidebar{display:none!important}
+  .main{flex-direction:column}
+  .topbar{padding:8px 12px}
+  .logo{font-size:16px}
+  .logo-sub{display:none}
+  .screen{padding:8px}
+  .guest-banner{display:none!important}
+  .compose-locked{display:none!important}
+  .nav{flex-wrap:nowrap;overflow-x:auto}
+  .nav-item{font-size:9px;padding:6px 2px;min-width:0}
+  .nav-item i{font-size:15px}
+  .mp-body{flex-direction:column;height:auto}
+  .mp-sidebar{width:100%;border-right:none;border-bottom:0.5px solid var(--border);max-height:150px;overflow-y:auto}
+  .pub-modal{max-width:100%;margin:0;border-radius:var(--radius-lg)}
+}
 </style>
 </head>
 <body>
@@ -362,7 +382,7 @@ input[type=file]{display:none}
   </div>
   <div class="nav" id="main-nav">
     <div class="nav-item active" id="nav-feed" onclick="navTo('feed')"><i class="ti ti-home"></i>Fil</div>
-    <div class="nav-item" id="nav-regles" onclick="navTo('regles')"><i class="ti ti-file-text"></i>Règles</div>
+    <div class="nav-item" id="nav-info" onclick="navTo('info')"><i class="ti ti-info-circle"></i>Info</div>
     <div class="nav-item" id="nav-mp" onclick="navTo('mp')"><i class="ti ti-message"></i>Messages</div>
     <div class="nav-item" id="nav-membres" onclick="navTo('membres')"><i class="ti ti-users"></i>Membres</div>
     <div class="nav-item" id="nav-admin" style="display:none" onclick="navTo('admin')"><i class="ti ti-shield"></i>Admin</div>
@@ -372,26 +392,29 @@ input[type=file]{display:none}
   <div class="screen visible" id="screen-feed">
     <div class="main">
       <div class="feed">
-        <div id="compose-zone"></div>
-        <div id="guest-banner"></div>
-        <div id="filter-bar"></div>
-        <div id="feed-posts"></div>
-      </div>
-      <div class="sidebar">
-        <div class="card">
-          <div class="side-title">Dax en chiffres</div>
-          <div class="stat-row"><span class="stat-label">Membres actifs</span><span class="stat-val" id="sb-count">0</span></div>
-          <div class="stat-row"><span class="stat-label">Posts ce mois</span><span class="stat-val" id="sb-posts">0</span></div>
-          <div class="stat-row"><span class="stat-label">Événements</span><span class="stat-val" id="sb-events-count">0</span></div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <div style="flex:1" id="compose-zone"></div>
+          <button class="search-toggle" onclick="toggleSearch()" title="Rechercher"><i class="ti ti-search"></i></button>
         </div>
-        <div id="pub-zone"></div>
-        <div class="card"><div class="side-title">Membres actifs</div><div id="sb-members"></div></div>
-        <div class="card"><div class="side-title">Agenda local</div><div id="sb-events"></div></div>
+        <div class="search-bar" id="search-bar">
+          <div class="search-wrap"><i class="ti ti-search"></i><input class="search-input" id="search-input" placeholder="Rechercher un post…" oninput="setFilter('search',this.value)"></div>
+          <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:6px" id="filter-cats"></div>
+          <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px" id="filter-quartiers"></div>
+        </div>
+        <div id="feed-posts"></div>
       </div>
     </div>
   </div>
 
-  <div class="screen" id="screen-regles">
+  <div class="screen" id="screen-info">
+    <div class="card" style="margin-bottom:10px">
+      <div class="side-title">Dax en chiffres</div>
+      <div class="stat-row"><span class="stat-label">Membres actifs</span><span class="stat-val" id="info-count">0</span></div>
+      <div class="stat-row"><span class="stat-label">Posts ce mois</span><span class="stat-val" id="info-posts">0</span></div>
+      <div class="stat-row"><span class="stat-label">Événements</span><span class="stat-val" id="info-events">0</span></div>
+    </div>
+    <div class="card" style="margin-bottom:10px"><div class="side-title">Membres actifs</div><div id="info-members"></div></div>
+    <div class="card" style="margin-bottom:10px"><div class="side-title">Agenda local</div><div id="info-agenda"></div></div>
     <div class="regles-header"><h2><i class="ti ti-file-text"></i> Règles de Dax Connect</h2><p>Dernière mise à jour : juin 2026 — Créateur : Gilles B.</p></div>
     <div class="card"><div id="regles-list"></div></div>
   </div>
@@ -772,6 +795,14 @@ let MOD_LOG=[];
 
 /* ---- UTILS ---- */
 function getU(id){return USERS.find(u=>u.id===id)||{initials:'?',color:'#ccc',tc:'#333',name:'Inconnu',role:'member',rue:'Dax',status:'active',statusInfo:'',avatar:null};}
+function timeAgo(date){
+  const now=new Date(),d=new Date(date),diff=Math.floor((now-d)/1000);
+  if(diff<60)return'À l\'instant';
+  if(diff<3600)return`il y a ${Math.floor(diff/60)} min`;
+  if(diff<86400)return`il y a ${Math.floor(diff/3600)}h`;
+  if(diff<604800)return`il y a ${Math.floor(diff/86400)} jour${Math.floor(diff/86400)>1?'s':''}`;
+  return d.toLocaleDateString('fr-FR',{day:'numeric',month:'short'});
+}
 function canMod(){return CU&&(CU.role==='creator'||CU.role==='admin');}
 function isCreator(){return CU&&CU.role==='creator';}
 function catMeta(id){return CATS.find(c=>c.id===id)||{label:id,icon:'ti-info-circle'};}
@@ -817,7 +848,7 @@ function showScreen(n){
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('visible'));
   const s=document.getElementById('screen-'+n);if(s)s.classList.add('visible');
   if(n==='feed'){autoExpire();renderFeed();}
-  if(n==='regles')renderRegles();
+  if(n==='info')renderInfo();
   if(n==='mp')renderMP();
   if(n==='membres')renderMembres();
   if(n==='admin'&&isCreator())renderAdmin();
@@ -832,25 +863,29 @@ function updateAvInitials(){
 }
 
 /* ---- COMPOSE ---- */
-function renderFeed(){renderCompose();renderGuestBanner();renderFilters();renderPosts();renderSidebar();}
+function renderFeed(){renderCompose();renderFilters();renderPosts();}
+
+function toggleSearch(){
+  const bar=document.getElementById('search-bar');
+  bar.classList.toggle('open');
+  if(bar.classList.contains('open'))document.getElementById('search-input').focus();
+}
 
 function renderFilters(){
-  const bar=document.getElementById('filter-bar');if(!bar)return;
-  const quartierBtns=['tous',...QUARTIERS_GEO.map(q=>q.name)].map(q=>
-    `<button class="filter-btn${filterQuartier===q?' active':''}" onclick="setFilter('quartier','${q}')">${q==='tous'?'Tous':q}</button>`
-  ).join('');
-  const catBtns=[{id:'tous',label:'Tous',icon:'ti-list'},...CATS].map(c=>
+  const catEl=document.getElementById('filter-cats');
+  const qEl=document.getElementById('filter-quartiers');
+  if(!catEl||!qEl)return;
+  catEl.innerHTML=[{id:'tous',label:'Tous',icon:'ti-list'},...CATS].map(c=>
     `<button class="filter-btn${filterCat===c.id?' active':''}" onclick="setFilter('cat','${c.id}')"><i class="ti ${c.icon}" style="font-size:10px"></i>${c.label}</button>`
   ).join('');
-  bar.innerHTML=`<div class="filter-card">
-    <div class="search-wrap"><i class="ti ti-search"></i><input class="search-input" placeholder="Rechercher un post…" value="${filterSearch}" oninput="setFilter('search',this.value)"></div>
-    <div class="filter-row"><span class="filter-label">Quartier</span>${quartierBtns}</div>
-    <div class="filter-row"><span class="filter-label">Thème</span>${catBtns}</div>
-  </div>`;
+  qEl.innerHTML=['tous',...QUARTIERS_GEO.map(q=>q.name)].map((q,i)=>
+    `<button class="filter-btn${filterQuartier===q?' active':''}" onclick="setFilter('quartier',${i})" data-q="${q}">${q==='tous'?'Tous':q}</button>`
+  ).join('');
+  window._filterQ=['tous',...QUARTIERS_GEO.map(q=>q.name)];
 }
 
 function setFilter(type,val){
-  if(type==='quartier')filterQuartier=val;
+  if(type==='quartier'){filterQuartier=window._filterQ[val];}
   else if(type==='cat')filterCat=val;
   else if(type==='search')filterSearch=val;
   renderPosts();
@@ -879,13 +914,7 @@ let filterQuartier='tous',filterCat='tous',filterSearch='';
 
 function renderCompose(){
   const z=document.getElementById('compose-zone');
-  if(!CU){
-    z.innerHTML=`<div class="compose-locked" onclick="showScreen('register')">
-      <div class="avatar" style="background:#eee;color:#999;width:32px;height:32px;font-size:17px"><i class="ti ti-lock"></i></div>
-      <span style="font-size:12px;color:#999;flex:1">Inscris-toi pour poster dans le quartier…</span>
-      <button class="gbtn gbtn-f" style="background:var(--red);color:#fff;border:none;font-size:11px">S'inscrire</button>
-    </div>`;return;
-  }
+  if(!CU){z.innerHTML='';return;}
   z.innerHTML=`<div class="compose-trigger" onclick="openPublishModal()">
     ${avatarHTML(CU,32)}
     <div class="compose-trigger-text">Quoi de neuf à Dax ?</div>
@@ -1018,8 +1047,8 @@ function renderGuestBanner(){
 /* ---- POSTS ---- */
 function mediaLayout(media){
   if(!media||!media.length)return'';
-  if(media.length===1)return`<div class="post-media-single">${media[0].type==='video'?`<video src="${media[0].url}" controls playsinline muted style="width:100%;max-height:230px;border-radius:8px;display:block"></video>`:`<img src="${media[0].url}" alt="media" loading="lazy" onclick="openLightbox(this.src)">`}</div>`;
-  return`<div class="post-media-duo">${media.map(m=>m.type==='video'?`<video src="${m.url}" muted style="width:100%;height:135px;object-fit:cover;border-radius:8px;display:block"></video>`:`<img src="${m.url}" alt="media" loading="lazy" onclick="openLightbox(this.src)">`).join('')}</div>`;
+  if(media.length===1)return`<div class="post-media-single">${media[0].type==='video'?`<video src="${media[0].url}" controls playsinline preload="metadata" style="width:100%;max-height:230px;border-radius:8px;display:block"></video>`:`<img src="${media[0].url}" alt="media" loading="lazy" onclick="openLightbox(this.src)">`}</div>`;
+  return`<div class="post-media-duo">${media.map(m=>m.type==='video'?`<video src="${m.url}" preload="metadata" controls playsinline style="width:100%;height:135px;object-fit:cover;border-radius:8px;display:block"></video>`:`<img src="${m.url}" alt="media" loading="lazy" onclick="openLightbox(this.src)">`).join('')}</div>`;
 }
 function openLightbox(src){
   document.getElementById('lightbox-img').src=src;
@@ -1092,7 +1121,7 @@ function renderPost(p){
       ${avatarHTML(au,32)}
       <div style="flex:1;min-width:0">
         <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap"><span class="post-name">${au.name}</span>${rb(au.role)}<span class="post-cat cat-${p.cat}"><i class="ti ${meta.icon}" style="font-size:10px"></i>${meta.label}</span></div>
-        <div class="post-sub"><i class="ti ti-map-pin" style="font-size:10px"></i> ${p.scope&&p.scope!=='Tout Dax'?p.scope:getU(p.authorId).quartier||'Dax'} · ${p.scope==='Tout Dax'?'Tout Dax · ':''}${p.time}</div>
+        <div class="post-sub"><i class="ti ti-map-pin" style="font-size:10px"></i> ${p.scope&&p.scope!=='Tout Dax'?p.scope:getU(p.authorId).quartier||'Dax'} · ${p.scope==='Tout Dax'?'Tout Dax · ':''}${p.time||timeAgo(p.createdAt)}</div>
         ${eventInfo}
         <div class="post-expiry${exp.soon?' soon':''}"><i class="ti ti-clock" style="font-size:10px"></i>${exp.label}</div>
       </div>
@@ -1140,24 +1169,21 @@ async function publishPost(){
 }
 
 /* ---- SIDEBAR ---- */
-function renderSidebar(){
-  const pz=document.getElementById('pub-zone');
-  if(CU&&CU.role!=='creator')pz.innerHTML=`<div class="pub-card" onclick="openMP('creator')"><div class="pub-title"><i class="ti ti-speakerphone"></i> Ta pub ici</div><div class="pub-sub">Clique pour contacter l'admin</div></div>`;
-  else if(!CU)pz.innerHTML=`<div class="pub-card" onclick="showScreen('register')"><div class="pub-title"><i class="ti ti-speakerphone"></i> Ta pub ici</div><div class="pub-sub">Inscris-toi pour nous contacter</div></div>`;
-  else pz.innerHTML='';
-  document.getElementById('sb-count').textContent=USERS.filter(u=>u.status==='active').length;
+function renderInfo(){
   const now=new Date(),moisActuel=now.getMonth(),anneeActuelle=now.getFullYear();
+  const actifs=USERS.filter(u=>u.status==='active');
   const postsCeMois=POSTS.filter(p=>{const d=new Date(p.createdAt);return d.getMonth()===moisActuel&&d.getFullYear()===anneeActuelle;}).length;
-  document.getElementById('sb-posts').textContent=postsCeMois;
   const evtsFuturs=POSTS.filter(p=>p.cat==='evenement'&&p.eventDate&&new Date(p.eventDate)>=now);
-  document.getElementById('sb-events-count').textContent=evtsFuturs.length;
-  document.getElementById('sb-members').innerHTML=USERS.filter(u=>u.status==='active').slice(0,4).map(u=>`<div class="member-row">${avatarHTML(u,25)}<div><div class="member-name">${u.name}</div><div class="member-sub2"><i class="ti ti-map-pin" style="font-size:10px"></i> ${u.quartier||'Dax'}</div></div></div>`).join('')||'<div style="font-size:11px;color:var(--text2)">Aucun membre pour le moment.</div>';
+  const ic=document.getElementById('info-count');if(ic)ic.textContent=actifs.length;
+  const ip=document.getElementById('info-posts');if(ip)ip.textContent=postsCeMois;
+  const ie=document.getElementById('info-events');if(ie)ie.textContent=evtsFuturs.length;
+  const im=document.getElementById('info-members');
+  if(im)im.innerHTML=actifs.slice(0,8).map(u=>`<div class="member-row">${avatarHTML(u,25)}<div><div class="member-name">${u.name}</div><div class="member-sub2"><i class="ti ti-map-pin" style="font-size:10px"></i> ${u.quartier||'Dax'}</div></div></div>`).join('')||'<div style="font-size:11px;color:var(--text2)">Aucun membre.</div>';
+  const ia=document.getElementById('info-agenda');
   const evtsList=evtsFuturs.map(p=>({d:new Date(p.eventDate).toLocaleDateString('fr-FR',{day:'numeric',month:'short'}),n:p.text.substring(0,30),l:getU(p.authorId).quartier||'Dax'}));
-  document.getElementById('sb-events').innerHTML=evtsList.length?evtsList.map(e=>`<div class="event-row"><div class="event-date">${e.d}</div><div><div class="event-name">${e.n}</div><div class="event-loc">${e.l}</div></div></div>`).join(''):'<div style="font-size:11px;color:var(--text2)">Aucun événement à venir.</div>';
+  if(ia)ia.innerHTML=evtsList.length?evtsList.map(e=>`<div class="event-row"><div class="event-date">${e.d}</div><div><div class="event-name">${e.n}</div><div class="event-loc">${e.l}</div></div></div>`).join(''):'<div style="font-size:11px;color:var(--text2)">Aucun événement à venir.</div>';
+  document.getElementById('regles-list').innerHTML=REGLES.map((r,i)=>`<div class="regle"><div class="regle-num">${i+1}</div><div><div class="regle-title">${r.t}</div><div class="regle-desc">${r.d}</div></div></div>`).join('');
 }
-
-/* ---- REGLES ---- */
-function renderRegles(){document.getElementById('regles-list').innerHTML=REGLES.map((r,i)=>`<div class="regle"><div class="regle-num">${i+1}</div><div><div class="regle-title">${r.t}</div><div class="regle-desc">${r.d}</div></div></div>`).join('');}
 
 /* ---- MP ---- */
 let mpTab='conv',savedMessages=[];
@@ -1406,7 +1432,7 @@ async function renderAdmin(){
     const meta=catMeta(p.cat);
     return`<div class="admin-row">
       ${avatarHTML(a,26)}
-      <div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:500">${a.name} <span class="post-cat cat-${p.cat}" style="font-size:9px"><i class="ti ${meta.icon}" style="font-size:9px"></i>${meta.label}</span></div><div style="font-size:11px;color:var(--text);margin-top:2px">${p.text.substring(0,55)}…</div><div style="font-size:10px;color:var(--text2);margin-top:1px">${p.time} · ♥ ${p.likes} · 💬 ${p.comments.length}</div></div>
+      <div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:500">${a.name} <span class="post-cat cat-${p.cat}" style="font-size:9px"><i class="ti ${meta.icon}" style="font-size:9px"></i>${meta.label}</span></div><div style="font-size:11px;color:var(--text);margin-top:2px">${p.text.substring(0,55)}…</div><div style="font-size:10px;color:var(--text2);margin-top:1px">${p.time||timeAgo(p.createdAt)} · ♥ ${p.likes} · 💬 ${p.comments.length}</div></div>
       <button class="abtn ban" onclick="delPost(${p.id});renderAdmin()"><i class="ti ti-trash" style="font-size:10px"></i></button>
     </div>`;
   }).join('');
