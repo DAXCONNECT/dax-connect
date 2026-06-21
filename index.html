@@ -322,7 +322,7 @@ input[type=file]{display:none}
     <div class="tb-feed" id="tb-feed">
       <button class="icon-btn" onclick="navTo('feedback')"><i class="ti ti-message-report"></i></button>
       <button class="icon-btn" onclick="navTo('mp')"><i class="ti ti-message"></i><span class="notif-dot" id="mp-dot" style="display:none">2</span></button>
-      <button class="icon-btn"><i class="ti ti-bell"></i><span class="notif-dot">1</span></button>
+      <button class="icon-btn"><i class="ti ti-bell"></i></button>
       <div id="top-av-wrap" style="position:relative"></div>
       <div class="profile-menu" id="profile-menu"></div>
     </div>
@@ -567,8 +567,6 @@ input[type=file]{display:none}
 <script>
 const DAX_POSTCODES=['40100'];
 const ANTHROPIC_API_KEY=''; // ← Mets ta clé API ici (sk-ant-...)
-const CREATOR_EMAIL='contact@droneplusservices.com';
-const CREATOR_PWD='DaxConnect2026!';
 let CU=null,selectedDur='24h',targetUid=null,selectedCat='info',fwType='bug',activeConvId=null,addrTimer=null,registeredFPs=[],currentFP='',pendingAvatar=null;
 const pendingMedia=[],sondageOpts=['',''];
 
