@@ -712,59 +712,25 @@ function getQuartier(lng,lat){
   return best;
 }
 
-/* ---- PERSISTENCE localStorage ---- */
-function cleanPostsForSave(posts){
-  return posts.map(p=>{
-    const clean={...p};
-    if(clean.media)clean.media=clean.media.map(m=>{
-      if(m.url&&m.url.startsWith('blob:'))return{type:m.type,url:m.cloudUrl||''};
-      if(m.url&&m.url.startsWith('data:')&&m.cloudUrl)return{type:m.type,url:m.cloudUrl};
-      return{type:m.type,url:m.url||''};
-    });
-    delete clean.editing;
-    delete clean.showComments;
-    return clean;
-  });
+/* ---- API CLOUD ---- */
+const API=UPLOAD_URL.replace('/upload','');
+async function api(path,method='GET',body=null){
+  const opts={method,headers:{'Content-Type':'application/json'}};
+  if(body)opts.body=JSON.stringify(body);
+  const r=await fetch(API+path,opts);
+  return r.json();
 }
-function saveData(){
+
+async function loadData(){
   try{
-    const cleanUsers=USERS.map(u=>{
-      const cu={...u};
-      if(cu.avatar&&cu.avatar.startsWith('data:')&&cu.avatar.length>5000)cu.avatar=null;
-      return cu;
-    });
-    localStorage.setItem('dc_users',JSON.stringify(cleanUsers));
-    localStorage.setItem('dc_posts',JSON.stringify(cleanPostsForSave(POSTS)));
-    localStorage.setItem('dc_convs',JSON.stringify(CONVS));
-    localStorage.setItem('dc_modlog',JSON.stringify(MOD_LOG));
-    localStorage.setItem('dc_fps',JSON.stringify(registeredFPs));
-  }catch(e){
-    console.error('Erreur sauvegarde localStorage',e);
-    if(e.name==='QuotaExceededError'){
-      alert('Stockage local plein ! Les anciennes données ont été nettoyées.');
-      try{
-        const oldPosts=POSTS.splice(Math.max(POSTS.length-20,0));
-        POSTS.length=0;POSTS.push(...oldPosts);
-        localStorage.setItem('dc_posts',JSON.stringify(cleanPostsForSave(POSTS)));
-      }catch(e2){}
-    }
-  }
+    const[uRes,pRes]=await Promise.all([api('/users'),api('/posts')]);
+    USERS.splice(0,USERS.length,...(uRes.users||[]));
+    const posts=(pRes.posts||[]).map(p=>{p.createdAt=new Date(p.createdAt);if(p.eventDate)p.eventDate=new Date(p.eventDate);p.showComments=false;p.liked=false;return p;});
+    POSTS.splice(0,POSTS.length,...posts);
+  }catch(e){console.warn('Erreur chargement cloud',e);}
 }
-function loadData(){
-  try{
-    const u=localStorage.getItem('dc_users');
-    const p=localStorage.getItem('dc_posts');
-    const c=localStorage.getItem('dc_convs');
-    const m=localStorage.getItem('dc_modlog');
-    const f=localStorage.getItem('dc_fps');
-    if(u)USERS.splice(0,USERS.length,...JSON.parse(u));
-    if(p){const parsed=JSON.parse(p);parsed.forEach(x=>{x.createdAt=new Date(x.createdAt);if(x.eventDate)x.eventDate=new Date(x.eventDate);x.showComments=false;});POSTS.splice(0,POSTS.length,...parsed);}
-    if(c)CONVS.splice(0,CONVS.length,...JSON.parse(c));
-    if(m)MOD_LOG.splice(0,MOD_LOG.length,...JSON.parse(m));
-    if(f)registeredFPs=JSON.parse(f);
-  }catch(e){console.warn('Erreur chargement données',e);}
-}
-function autoLogin(){
+function saveData(){}
+async function autoLogin(){
   const sid=localStorage.getItem('dc_session');
   if(sid){
     const u=USERS.find(x=>x.id===sid);
@@ -774,13 +740,7 @@ function autoLogin(){
 function saveSession(){if(CU)localStorage.setItem('dc_session',CU.id);}
 function clearSession(){localStorage.removeItem('dc_session');}
 
-const CREATOR_DEFAULT={id:'creator',initials:'GB',color:'#F7C1C1',tc:'#791F1F',name:'Gilles BOURDILLAS',role:'creator',rue:'Route de Saubagnacq',quartier:'Saubagnacq',status:'active',statusInfo:'',avatar:null,email:'contact@droneplusservices.com',pwd:'DaxConnect2026!'};
-
 let USERS=[];
-function initUsers(){
-  if(!USERS.length){USERS.push({...CREATOR_DEFAULT});saveData();}
-  if(!USERS.find(u=>u.id==='creator')){USERS.unshift({...CREATOR_DEFAULT});saveData();}
-}
 
 const CATS=[
   {id:'evenement',label:'Événement',icon:'ti-calendar-event'},
@@ -1088,7 +1048,7 @@ function sondageHTML(p){
   return`<div class="sondage-zone">${opts}<div class="sondage-total">${total} vote${total!==1?'s':''} · ${CU&&!hasVoted?'Clique pour voter':CU?'Clique pour changer':''}</div></div>`;
 }
 
-function voteSondage(pid,optIdx){
+async function voteSondage(pid,optIdx){
   if(!CU)return;
   const p=POSTS.find(x=>x.id===pid);
   if(!p||!p.sondage)return;
@@ -1096,11 +1056,11 @@ function voteSondage(pid,optIdx){
   const prev=p.sondage.voters[CU.id];
   if(prev!==undefined){
     p.sondage.votes[prev]--;
-    if(prev===optIdx){delete p.sondage.voters[CU.id];saveData();document.getElementById('post-'+pid).outerHTML=renderPost(p);return;}
+    if(prev===optIdx){delete p.sondage.voters[CU.id];await api('/posts/'+pid,'PUT',{sondage:p.sondage});document.getElementById('post-'+pid).outerHTML=renderPost(p);return;}
   }
   p.sondage.votes[optIdx]++;
   p.sondage.voters[CU.id]=optIdx;
-  saveData();
+  await api('/posts/'+pid,'PUT',{sondage:p.sondage});
   document.getElementById('post-'+pid).outerHTML=renderPost(p);
 }
 
@@ -1149,16 +1109,16 @@ function renderPosts(){
   const html=filtered.length?filtered.map(renderPost).join(''):'<div class="card" style="text-align:center;padding:20px;color:var(--text2)"><i class="ti ti-search-off" style="font-size:24px;display:block;margin-bottom:6px;opacity:.3"></i><div style="font-size:13px">Aucun post trouvé</div><div style="font-size:11px;margin-top:3px">Essaie d\'autres filtres</div></div>';
   document.getElementById('feed-posts').innerHTML=html;
 }
-function togLike(id){if(!CU){showScreen('register');return;}const p=POSTS.find(x=>x.id===id);if(!p)return;p.liked=!p.liked;p.likes+=p.liked?1:-1;saveData();document.getElementById('post-'+id).outerHTML=renderPost(p);}
+async function togLike(id){if(!CU){showScreen('register');return;}const p=POSTS.find(x=>x.id===id);if(!p)return;const res=await api('/likes','POST',{userId:CU.id,postId:id});p.liked=res.liked;p.likes+=res.liked?1:-1;document.getElementById('post-'+id).outerHTML=renderPost(p);}
 function togCom(id){if(!CU){showScreen('register');return;}const p=POSTS.find(x=>x.id===id);if(!p)return;p.showComments=!p.showComments;document.getElementById('post-'+id).outerHTML=renderPost(p);}
-function sendCom(pid){const inp=document.getElementById('ci-'+pid);if(!inp||!CU)return;const txt=inp.value.trim();if(!txt)return;const p=POSTS.find(x=>x.id===pid);if(!p)return;p.comments.push({id:Date.now(),authorId:CU.id,text:txt,time:'À l\'instant'});saveData();document.getElementById('post-'+pid).outerHTML=renderPost(p);}
-function delPost(id){if(!canMod())return;POSTS=POSTS.filter(p=>p.id!==id);saveData();renderPosts();}
-function delCom(pid,cid){if(!canMod())return;const p=POSTS.find(x=>x.id===pid);if(!p)return;p.comments=p.comments.filter(c=>c.id!==cid);saveData();document.getElementById('post-'+pid).outerHTML=renderPost(p);}
+async function sendCom(pid){const inp=document.getElementById('ci-'+pid);if(!inp||!CU)return;const txt=inp.value.trim();if(!txt)return;const p=POSTS.find(x=>x.id===pid);if(!p)return;await api('/comments','POST',{postId:pid,authorId:CU.id,text:txt});p.comments.push({id:Date.now(),authorId:CU.id,text:txt,time:'À l\'instant'});document.getElementById('post-'+pid).outerHTML=renderPost(p);}
+async function delPost(id){if(!canMod())return;await api('/posts/'+id,'DELETE');POSTS=POSTS.filter(p=>p.id!==id);renderPosts();}
+async function delCom(pid,cid){if(!canMod())return;await api('/comments/'+cid,'DELETE');const p=POSTS.find(x=>x.id===pid);if(!p)return;p.comments=p.comments.filter(c=>c.id!==cid);document.getElementById('post-'+pid).outerHTML=renderPost(p);}
 function editPost(id){const p=POSTS.find(x=>x.id===id);if(!p||!CU||CU.id!==p.authorId)return;p.editing=true;document.getElementById('post-'+id).outerHTML=renderPost(p);}
-function saveEdit(id){const p=POSTS.find(x=>x.id===id);if(!p)return;const ta=document.getElementById('edit-'+id);if(ta)p.text=ta.value.trim();p.editing=false;p.time='Modifié';saveData();document.getElementById('post-'+id).outerHTML=renderPost(p);}
+async function saveEdit(id){const p=POSTS.find(x=>x.id===id);if(!p)return;const ta=document.getElementById('edit-'+id);if(ta)p.text=ta.value.trim();p.editing=false;p.time='Modifié';await api('/posts/'+id,'PUT',{text:p.text});document.getElementById('post-'+id).outerHTML=renderPost(p);}
 function cancelEdit(id){const p=POSTS.find(x=>x.id===id);if(!p)return;p.editing=false;document.getElementById('post-'+id).outerHTML=renderPost(p);}
 
-function publishPost(){
+async function publishPost(){
   const txt=(document.getElementById('pub-text')||{value:''}).value.trim();
   if(!txt&&!pendingMedia.length&&selectedCat!=='sondage')return;
   if(pendingMedia.some(m=>m.aiState==='warn'||m.aiState==='checking'))return;
@@ -1169,11 +1129,13 @@ function publishPost(){
     sondage={opts:validOpts,votes:new Array(validOpts.length).fill(0),voters:{}};
   }
   const edInput=document.getElementById('pub-event-input');
-  const eventDate=selectedCat==='evenement'&&edInput&&edInput.value?new Date(edInput.value):null;
+  const eventDate=selectedCat==='evenement'&&edInput&&edInput.value?edInput.value:null;
   const scope=postScope==='ville'?'Tout Dax':postScope;
-  POSTS.unshift({id:Date.now(),authorId:CU.id,rue:CU.quartier||'Dax',time:'À l\'instant',cat:selectedCat,text:txt,media:pendingMedia.map(m=>({type:m.type,url:m.cloudUrl||m.url})),likes:0,liked:false,comments:[],showComments:false,createdAt:new Date(),eventDate,sondage,scope});
+  const media=pendingMedia.map(m=>({type:m.type,url:m.cloudUrl||m.url}));
+  const res=await api('/posts','POST',{authorId:CU.id,cat:selectedCat,text:txt,scope,media,eventDate,sondage});
+  POSTS.unshift({id:res.id,authorId:CU.id,rue:CU.quartier||'Dax',time:'À l\'instant',cat:selectedCat,text:txt,media,likes:0,liked:false,comments:[],showComments:false,createdAt:new Date(),eventDate:eventDate?new Date(eventDate):null,sondage,scope});
   pendingMedia.length=0;sondageOpts.splice(0,sondageOpts.length,'','');
-  closePublishModal();saveData();renderFeed();
+  closePublishModal();renderFeed();
 }
 
 /* ---- SIDEBAR ---- */
@@ -1324,12 +1286,14 @@ function previewPubli(){
   prev.innerHTML=`<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">${avatarHTML(CU,26)}<div><div style="font-size:12px;font-weight:600">${CU.name}</div><div style="font-size:10px;color:var(--text2)">Créateur · À l'instant</div></div></div><div style="font-size:13px;white-space:pre-wrap">${txt}</div>`;
 }
 
-function publiOfficielle(){
+async function publiOfficielle(){
   const txt=document.getElementById('publi-text').value.trim();
   if(!txt)return;
   const catMap={bienvenue:'info',info:'info',alerte:'alerte',evenement:'evenement',regles:'info'};
-  POSTS.unshift({id:Date.now(),authorId:CU.id,rue:CU.quartier||'Dax',time:'À l\'instant',cat:catMap[publiType]||'info',text:`📣 [Message officiel]\n\n${txt}`,media:[],likes:0,liked:false,comments:[],showComments:false,createdAt:new Date(),eventDate:null,sondage:null});
-  saveData();
+  const cat=catMap[publiType]||'info';
+  const fullText=`📣 [Message officiel]\n\n${txt}`;
+  const res=await api('/posts','POST',{authorId:CU.id,cat,text:fullText,scope:'Tout Dax',media:[]});
+  POSTS.unshift({id:res.id,authorId:CU.id,rue:CU.quartier||'Dax',time:'À l\'instant',cat,text:fullText,media:[],likes:0,liked:false,comments:[],showComments:false,createdAt:new Date(),eventDate:null,sondage:null});
   document.getElementById('publi-text').value='';
   document.getElementById('publi-preview').style.display='none';
   renderAdmin();
@@ -1376,8 +1340,9 @@ async function loadStorageStats(){
   }
 }
 
-function renderAdmin(){
+async function renderAdmin(){
   if(!isCreator())return;
+  try{const mlRes=await api('/modlog');MOD_LOG.splice(0,MOD_LOG.length,...(mlRes.logs||[]));}catch(e){}
 
   // STATS
   const total=USERS.length;
@@ -1436,15 +1401,15 @@ function renderAdmin(){
   // LOG
   document.getElementById('mod-log').innerHTML=MOD_LOG.length?MOD_LOG.map(l=>`<div class="log-item"><div class="log-icon" style="background:${l.bg};color:${l.ic}"><i class="ti ${l.icon}"></i></div><div><div style="font-size:12px">${l.text}</div><div style="font-size:10px;color:var(--text2)">${l.time}</div></div></div>`).join(''):'<div style="padding:10px;font-size:12px;color:var(--text2)">Aucune action.</div>';
 }
-function promAdmin(id){const u=USERS.find(x=>x.id===id);if(!u)return;u.role='admin';MOD_LOG.unshift({icon:'ti-shield',bg:'#E6F1FB',ic:'#185FA5',text:`${u.name} nommé(e) Admin par ${CU.name}`,time:'à l\'instant'});saveData();renderAdmin();renderPosts();}
-function demAdmin(id){const u=USERS.find(x=>x.id===id);if(!u)return;u.role='member';MOD_LOG.unshift({icon:'ti-shield-off',bg:'#FAEEDA',ic:'#854F0B',text:`${u.name} retiré(e) des Admins par ${CU.name}`,time:'à l\'instant'});saveData();renderAdmin();renderPosts();}
+async function promAdmin(id){const u=USERS.find(x=>x.id===id);if(!u)return;u.role='admin';await api('/users/'+id,'PUT',{role:'admin'});await api('/modlog','POST',{icon:'ti-shield',bg:'#E6F1FB',ic:'#185FA5',text:`${u.name} nommé(e) Admin par ${CU.name}`});renderAdmin();renderPosts();}
+async function demAdmin(id){const u=USERS.find(x=>x.id===id);if(!u)return;u.role='member';await api('/users/'+id,'PUT',{role:'member'});await api('/modlog','POST',{icon:'ti-shield-off',bg:'#FAEEDA',ic:'#854F0B',text:`${u.name} retiré(e) des Admins par ${CU.name}`});renderAdmin();renderPosts();}
 function openSuspend(id){targetUid=id;selectedDur='24h';document.querySelectorAll('.dur-btn').forEach((b,i)=>b.classList.toggle('active',i===0));const u=getU(id);document.getElementById('ms-title').textContent=`Suspendre ${u.name}`;document.getElementById('ms-sub').textContent=`Décision finale, sans recours possible.`;document.getElementById('sus-raison').value='';document.getElementById('modal-suspend').style.display='flex';}
 function openBan(id){targetUid=id;const u=getU(id);document.getElementById('mb-sub').textContent=`${u.name} sera exclu(e) définitivement.`;document.getElementById('ban-raison').value='';document.getElementById('modal-ban').style.display='flex';}
 function openRestore(id){targetUid=id;const u=getU(id);document.getElementById('mr-sub').textContent=u.status==='banned'?`Réintégrer ${u.name} ?`:`Lever la suspension de ${u.name} ?`;document.getElementById('modal-restore').style.display='flex';}
 function selDur(btn,dur){selectedDur=dur;document.querySelectorAll('.dur-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');}
-function confirmSuspend(){const u=USERS.find(x=>x.id===targetUid);if(!u)return;const r=document.getElementById('sus-raison').value.trim();u.status='suspended';u.statusInfo=`Suspendu ${selectedDur}${r?' — '+r:''}`;MOD_LOG.unshift({icon:'ti-user-minus',bg:'#FAEEDA',ic:'#854F0B',text:`${u.name} suspendu(e) ${selectedDur} par ${CU.name}${r?' — '+r:''}`,time:'à l\'instant'});saveData();closeModal('suspend');renderAdmin();}
-function confirmBan(){const u=USERS.find(x=>x.id===targetUid);if(!u)return;const r=document.getElementById('ban-raison').value.trim();u.status='banned';u.statusInfo=`Exclu définitivement${r?' — '+r:''}`;MOD_LOG.unshift({icon:'ti-user-x',bg:'#FCEBEB',ic:'#A32D2D',text:`${u.name} exclu(e) par ${CU.name}${r?' — '+r:''}`,time:'à l\'instant'});saveData();closeModal('ban');renderAdmin();}
-function confirmRestore(){const u=USERS.find(x=>x.id===targetUid);if(!u)return;const wb=u.status==='banned';u.status='active';u.statusInfo='';MOD_LOG.unshift({icon:'ti-user-check',bg:'#EAF3DE',ic:'#3B6D11',text:`${u.name} ${wb?'réintégré(e)':'suspension levée'} par ${CU.name}`,time:'à l\'instant'});saveData();closeModal('restore');renderAdmin();}
+async function confirmSuspend(){const u=USERS.find(x=>x.id===targetUid);if(!u)return;const r=document.getElementById('sus-raison').value.trim();u.status='suspended';u.statusInfo=`Suspendu ${selectedDur}${r?' — '+r:''}`;await api('/users/'+targetUid,'PUT',{status:'suspended',statusInfo:u.statusInfo});await api('/modlog','POST',{icon:'ti-user-minus',bg:'#FAEEDA',ic:'#854F0B',text:`${u.name} suspendu(e) ${selectedDur} par ${CU.name}${r?' — '+r:''}`});closeModal('suspend');renderAdmin();}
+async function confirmBan(){const u=USERS.find(x=>x.id===targetUid);if(!u)return;const r=document.getElementById('ban-raison').value.trim();u.status='banned';u.statusInfo=`Exclu définitivement${r?' — '+r:''}`;await api('/users/'+targetUid,'PUT',{status:'banned',statusInfo:u.statusInfo});await api('/modlog','POST',{icon:'ti-user-x',bg:'#FCEBEB',ic:'#A32D2D',text:`${u.name} exclu(e) par ${CU.name}${r?' — '+r:''}`});closeModal('ban');renderAdmin();}
+async function confirmRestore(){const u=USERS.find(x=>x.id===targetUid);if(!u)return;const wb=u.status==='banned';u.status='active';u.statusInfo='';await api('/users/'+targetUid,'PUT',{status:'active',statusInfo:''});await api('/modlog','POST',{icon:'ti-user-check',bg:'#EAF3DE',ic:'#3B6D11',text:`${u.name} ${wb?'réintégré(e)':'suspension levée'} par ${CU.name}`});closeModal('restore');renderAdmin();}
 function closeModal(n){document.getElementById('modal-'+n).style.display='none';targetUid=null;}
 
 /* ---- FEEDBACK ---- */
@@ -1593,22 +1558,22 @@ async function buildFP(){
   }
 }
 
-function submitReg(){
-  if(!(fS.prenom&&fS.nom&&fS.email&&fS.pwd&&fS.addr)||registeredFPs.includes(currentFP))return;
+async function submitReg(){
+  if(!(fS.prenom&&fS.nom&&fS.email&&fS.pwd&&fS.addr))return;
   const p=document.getElementById('rg-prenom').value.trim(),n=document.getElementById('rg-nom').value.trim();
   const addr=document.getElementById('rg-addr').value.trim();
   const quartierSel=document.getElementById('pf-quartier');
   const quartier=quartierSel&&quartierSel.value?quartierSel.value:'Dax';
   const email=document.getElementById('rg-email').value.trim().toLowerCase();
   const pwd=document.getElementById('rg-pwd').value;
-  if(USERS.find(u=>u.email===email)){setFld('email',false,'Un compte existe déjà avec cet email.');return;}
   const colors=['#9FE1CB','#B5D4F4','#FAC775','#F4C0D1','#CED0F6','#F7C1C1','#C8E6C9','#FFE0B2'];
   const tcs=['#085041','#0C447C','#633806','#4B1528','#26215C','#791F1F','#1B5E20','#E65100'];
   const ci=Math.floor(Math.random()*colors.length);
-  const nu={id:'u'+Date.now(),initials:(p[0]+n[0]).toUpperCase(),color:colors[ci],tc:tcs[ci],name:`${p} ${n.toUpperCase()}`,role:'member',rue:addr.split(',')[0]||'Dax',quartier:quartier,status:'active',statusInfo:'',avatar:pendingAvatar,email:email,pwd:pwd};
-  USERS.push(nu);registeredFPs.push(currentFP);CU=nu;
-  saveData();saveSession();
-  updateTopAvatar();
+  const btn=document.getElementById('rg-btn');btn.disabled=true;btn.textContent='Création…';
+  const res=await api('/auth/register','POST',{name:`${p} ${n.toUpperCase()}`,email,pwd,initials:(p[0]+n[0]).toUpperCase(),color:colors[ci],tc:tcs[ci],rue:addr.split(',')[0]||'Dax',quartier,avatar:pendingAvatar,fingerprint:currentFP});
+  if(res.error){btn.disabled=false;btn.textContent='Créer mon compte';setFld('email',false,res.error);return;}
+  CU=res.user;USERS.push(CU);
+  saveSession();updateTopAvatar();
   document.getElementById('suc-title').textContent=`Bienvenue ${p} !`;
   document.getElementById('suc-sub').textContent=`Compte créé. Tu rejoins Dax Connect en tant que membre.`;
   document.getElementById('tb-auth').style.display='none';document.getElementById('tb-feed').style.display='flex';
@@ -1719,7 +1684,7 @@ function applyCrop(){
       if(d.url)finalUrl=d.url;
     }catch(e){}
     if(cropState.target==='profile'&&CU){
-      CU.avatar=finalUrl;saveData();updateTopAvatar();renderPosts();
+      CU.avatar=finalUrl;api('/users/'+CU.id,'PUT',{avatar:finalUrl});updateTopAvatar();renderPosts();
       document.getElementById('profile-menu').classList.remove('open');
     }else if(cropState.target==='register'){
       pendingAvatar=finalUrl;
@@ -1745,16 +1710,15 @@ document.addEventListener('click',function(e){
 });
 
 /* ---- LOGIN ---- */
-function loginReal(){
+async function loginReal(){
   const email=(document.getElementById('lg-email')||{}).value.trim().toLowerCase();
   const pwd=(document.getElementById('lg-pwd')||{}).value;
   const errEl=document.getElementById('lg-error');
   if(!email||!pwd){if(errEl)errEl.textContent='Remplis tous les champs.';return;}
-  const u=USERS.find(x=>x.email===email&&x.pwd===pwd);
-  if(!u){if(errEl)errEl.textContent='Email ou mot de passe incorrect.';return;}
-  if(u.status==='banned'){if(errEl)errEl.textContent='Ce compte a été exclu.';return;}
-  if(u.status==='suspended'){if(errEl)errEl.textContent='Compte suspendu : '+u.statusInfo;return;}
-  CU=u;saveSession();
+  const res=await api('/auth/login','POST',{email,pwd});
+  if(res.error){if(errEl)errEl.textContent=res.error;return;}
+  CU=res.user;saveSession();
+  await loadData();
   document.getElementById('tb-auth').style.display='none';document.getElementById('tb-feed').style.display='flex';
   updateTopAvatar();
   if(CU.role==='creator')document.getElementById('nav-admin').style.display='flex';
@@ -1769,15 +1733,16 @@ function enterFeedSilent(){
 }
 
 /* INIT */
-loadData();
-loadSaved();
-initUsers();
-autoLogin();
-initCropper();
-renderFeed();
-renderRegles();
-buildFP();
-setInterval(()=>{autoExpire();saveData();if(document.getElementById('screen-feed').classList.contains('visible'))renderPosts();},60000);
+(async function(){
+  await loadData();
+  loadSaved();
+  await autoLogin();
+  initCropper();
+  renderFeed();
+  renderRegles();
+  buildFP();
+  setInterval(async()=>{autoExpire();await loadData();if(document.getElementById('screen-feed').classList.contains('visible'))renderPosts();},30000);
+})();
 </script>
 </body>
 </html>
