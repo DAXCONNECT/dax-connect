@@ -1175,7 +1175,20 @@ function renderPost(p){
         <div class="post-expiry${exp.soon?' soon':''}"><i class="ti ti-clock" style="font-size:10px"></i>${exp.label}</div>
       </div>
     </div>
-    ${p.editing?`<div style="display:flex;flex-direction:column;gap:6px"><textarea class="compose-input" id="edit-${p.id}" style="min-height:50px">${p.text}</textarea><div style="display:flex;gap:5px;justify-content:flex-end"><button class="abtn" onclick="cancelEdit(${p.id})">Annuler</button><button class="post-btn" style="font-size:11px;padding:4px 12px" onclick="saveEdit(${p.id})"><i class="ti ti-check" style="font-size:11px"></i> Enregistrer</button></div></div>`:p.text?`<div class="post-text">${p.text}</div>`:''}
+    ${p.editing?`<div style="display:flex;flex-direction:column;gap:6px">
+      <textarea class="compose-input" id="edit-${p.id}" style="min-height:50px">${p.text}</textarea>
+      <div class="media-prev" id="edit-media-${p.id}">${(p.media||[]).map((m,i)=>`<div class="media-thumb">${m.type==='image'?`<img src="${m.url}" alt="">`:`<video src="${m.url}" muted></video>`}<button class="rm-media" onclick="rmEditMedia(${p.id},${i})"><i class="ti ti-x" style="font-size:8px"></i></button></div>`).join('')}</div>
+      <div style="display:flex;gap:5px;align-items:center">
+        <button class="mbtn" onclick="document.getElementById('edit-pi-${p.id}').click()"><i class="ti ti-photo" style="font-size:12px"></i> Photo</button>
+        <button class="mbtn" onclick="document.getElementById('edit-vi-${p.id}').click()"><i class="ti ti-video" style="font-size:12px"></i> Vidéo</button>
+        <div style="margin-left:auto;display:flex;gap:5px">
+          <button class="abtn" onclick="cancelEdit(${p.id})">Annuler</button>
+          <button class="post-btn" style="font-size:11px;padding:4px 12px" onclick="saveEdit(${p.id})"><i class="ti ti-check" style="font-size:11px"></i> Enregistrer</button>
+        </div>
+      </div>
+      <input type="file" id="edit-pi-${p.id}" accept="image/*" style="display:none" onchange="addEditMedia(${p.id},this,'image')">
+      <input type="file" id="edit-vi-${p.id}" accept="video/*" style="display:none" onchange="addEditMedia(${p.id},this,'video')">
+    </div>`:p.text?`<div class="post-text">${p.text}</div>`:''}
     ${sondageHTML(p)}
     ${mediaLayout(p.media)}
     <div class="post-actions">${acts}</div>
@@ -1221,9 +1234,20 @@ async function sendCom(pid){
 }
 async function delPost(id){if(!canMod())return;await api('/posts/'+id,'DELETE');POSTS=POSTS.filter(p=>p.id!==id);renderPosts();}
 async function delCom(pid,cid){if(!canMod())return;await api('/comments/'+cid,'DELETE');const p=POSTS.find(x=>x.id===pid);if(!p)return;p.comments=p.comments.filter(c=>c.id!==cid);document.getElementById('post-'+pid).outerHTML=renderPost(p);}
-function editPost(id){const p=POSTS.find(x=>x.id===id);if(!p||!CU||CU.id!==p.authorId)return;p.editing=true;document.getElementById('post-'+id).outerHTML=renderPost(p);}
-async function saveEdit(id){const p=POSTS.find(x=>x.id===id);if(!p)return;const ta=document.getElementById('edit-'+id);if(ta)p.text=ta.value.trim();p.editing=false;p.time='Modifié';await api('/posts/'+id,'PUT',{text:p.text});document.getElementById('post-'+id).outerHTML=renderPost(p);}
-function cancelEdit(id){const p=POSTS.find(x=>x.id===id);if(!p)return;p.editing=false;document.getElementById('post-'+id).outerHTML=renderPost(p);}
+function editPost(id){const p=POSTS.find(x=>x.id===id);if(!p||!CU||CU.id!==p.authorId)return;p.editing=true;if(!p._origMedia)p._origMedia=[...(p.media||[])];document.getElementById('post-'+id).outerHTML=renderPost(p);}
+function rmEditMedia(pid,idx){const p=POSTS.find(x=>x.id===pid);if(!p)return;p.media.splice(idx,1);document.getElementById('post-'+pid).outerHTML=renderPost(p);}
+async function addEditMedia(pid,input,type){
+  const p=POSTS.find(x=>x.id===pid);if(!p)return;
+  const files=Array.from(input.files);input.value='';
+  for(const f of files){
+    const form=new FormData();form.append('file',f);
+    try{const r=await fetch(UPLOAD_URL,{method:'POST',body:form});const d=await r.json();if(d.url)p.media.push({type,url:d.url});}
+    catch(e){p.media.push({type,url:URL.createObjectURL(f)});}
+  }
+  document.getElementById('post-'+pid).outerHTML=renderPost(p);
+}
+async function saveEdit(id){const p=POSTS.find(x=>x.id===id);if(!p)return;const ta=document.getElementById('edit-'+id);if(ta)p.text=ta.value.trim();p.editing=false;p.time||timeAgo(p.createdAt);delete p._origMedia;await api('/posts/'+id,'PUT',{text:p.text,media:p.media});document.getElementById('post-'+id).outerHTML=renderPost(p);}
+function cancelEdit(id){const p=POSTS.find(x=>x.id===id);if(!p)return;p.editing=false;if(p._origMedia){p.media=[...p._origMedia];delete p._origMedia;}document.getElementById('post-'+id).outerHTML=renderPost(p);}
 
 async function publishPost(){
   const txt=(document.getElementById('pub-text')||{value:''}).value.trim();

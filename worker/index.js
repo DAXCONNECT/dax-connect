@@ -101,6 +101,7 @@ export default {
         const pid = parseInt(path.split('/')[2]);
         const b = await request.json();
         if (b.text !== undefined) await DB.prepare('UPDATE posts SET text=? WHERE id=?').bind(b.text, pid).run();
+        if (b.media !== undefined) await DB.prepare('UPDATE posts SET media=? WHERE id=?').bind(JSON.stringify(b.media), pid).run();
         if (b.sondage !== undefined) await DB.prepare('UPDATE posts SET sondage=? WHERE id=?').bind(JSON.stringify(b.sondage), pid).run();
         return json({ ok: true }, 200, h);
       }
