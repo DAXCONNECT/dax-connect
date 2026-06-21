@@ -740,9 +740,9 @@ input[type=file]{display:none}
 
 <div class="lightbox" id="lightbox" onclick="closeLightbox()">
   <button class="lightbox-close" onclick="event.stopPropagation();closeLightbox()"><i class="ti ti-x"></i></button>
-  <button onclick="event.stopPropagation();navLightbox(-1)" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,0.2);border:none;color:#fff;font-size:18px;cursor:pointer;display:none" id="lb-prev"><i class="ti ti-chevron-left"></i></button>
+  <button onclick="event.stopPropagation();navLightbox(-1)" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,0.2);border:none;color:#fff;cursor:pointer;display:none;align-items:center;justify-content:center" id="lb-prev"><i class="ti ti-chevron-left" style="font-size:22px;line-height:1"></i></button>
   <img id="lightbox-img" src="" alt="" onclick="event.stopPropagation()">
-  <button onclick="event.stopPropagation();navLightbox(1)" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,0.2);border:none;color:#fff;font-size:18px;cursor:pointer;display:none" id="lb-next"><i class="ti ti-chevron-right"></i></button>
+  <button onclick="event.stopPropagation();navLightbox(1)" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,0.2);border:none;color:#fff;cursor:pointer;display:none;align-items:center;justify-content:center" id="lb-next"><i class="ti ti-chevron-right" style="font-size:22px;line-height:1"></i></button>
   <div id="lb-counter" style="position:absolute;bottom:16px;left:50%;transform:translateX(-50%);color:rgba(255,255,255,0.7);font-size:12px;display:none"></div>
 </div>
 
@@ -1110,8 +1110,9 @@ let lbImages=[],lbIdx=0;
 function openGallery(urls,idx){
   lbImages=urls;lbIdx=idx;
   document.getElementById('lightbox-img').src=urls[idx];
-  document.getElementById('lb-prev').style.display=urls.length>1?'flex':'none';
-  document.getElementById('lb-next').style.display=urls.length>1?'flex':'none';
+  const prevBtn=document.getElementById('lb-prev'),nextBtn=document.getElementById('lb-next');
+  prevBtn.style.display=urls.length>1?'flex':'none';
+  nextBtn.style.display=urls.length>1?'flex':'none';
   document.getElementById('lb-counter').style.display=urls.length>1?'block':'none';
   document.getElementById('lb-counter').textContent=`${idx+1} / ${urls.length}`;
   document.getElementById('lightbox').classList.add('open');
