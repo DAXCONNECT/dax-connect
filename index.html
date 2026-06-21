@@ -526,6 +526,7 @@ input[type=file]{display:none}
           <select id="pf-quartier" style="width:100%;padding:7px 9px;border:0.5px solid var(--border);border-radius:var(--radius);font-size:12px;font-family:inherit;background:var(--bg3);color:var(--text);outline:none;cursor:pointer">
             <option value="">— Choisir votre quartier —</option>
             <option value="Centre-ville">Centre-ville</option>
+            <option value="Les 3 Pigeons">Les 3 Pigeons</option>
             <option value="Saint-Pierre">Saint-Pierre</option>
             <option value="Saint-Vincent">Saint-Vincent</option>
             <option value="Le Sablar">Le Sablar</option>
@@ -667,6 +668,7 @@ async function callClaude(messages,maxTokens=200){
 
 const QUARTIERS_GEO=[
   {name:'Centre-ville',lat:43.7110,lng:-1.0520},
+  {name:'Les 3 Pigeons',lat:43.7077,lng:-1.0565},
   {name:'Saint-Pierre',lat:43.7090,lng:-1.0490},
   {name:'Saint-Vincent',lat:43.7075,lng:-1.0555},
   {name:'Le Sablar',lat:43.7155,lng:-1.0545},
@@ -1310,7 +1312,21 @@ function closeModal(n){document.getElementById('modal-'+n).style.display='none';
 /* ---- FEEDBACK ---- */
 const FW_CFG={bug:{label:'Décris le bug rencontré',ph:'Ex : Quand je clique sur Publier, rien ne se passe…',ok:'Bug signalé !',oks:'Gilles va analyser ça. Merci !'},idee:{label:'Décris ton idée',ph:'Ex : J\'aimerais pouvoir filtrer les posts…',ok:'Idée reçue !',oks:'Elle sera examinée pour une prochaine mise à jour.'},amelio:{label:'Quelle amélioration proposes-tu ?',ph:'Ex : Le formulaire pourrait être plus simple…',ok:'Amélioration notée !',oks:'Merci pour ce retour constructif !'}};
 function selFW(t,el){fwType=t;document.querySelectorAll('.fw-type').forEach(x=>x.classList.remove('active'));el.classList.add('active');document.getElementById('fw-label').textContent=FW_CFG[t].label;document.getElementById('fw-text').placeholder=FW_CFG[t].ph;document.getElementById('fw-text').value='';}
-function sendFW(){const txt=document.getElementById('fw-text').value.trim();if(!txt)return;const cfg=FW_CFG[fwType];document.getElementById('fw-content').style.display='none';document.getElementById('fw-ok-t').textContent=cfg.ok;document.getElementById('fw-ok-s').textContent=cfg.oks;document.getElementById('fw-success').style.display='block';}
+function sendFW(){
+  const txt=document.getElementById('fw-text').value.trim();if(!txt)return;
+  const cfg=FW_CFG[fwType];
+  if(CU){
+    const typeLabel={bug:'🐛 Bug',idee:'💡 Idée',amelio:'🚀 Amélioration'};
+    let conv=CONVS.find(c=>c.withId==='creator');
+    if(!conv){conv={id:'c'+Date.now(),withId:'creator',unread:false,messages:[]};CONVS.push(conv);}
+    conv.messages.push({from:CU.id,text:`[Feedback — ${typeLabel[fwType]}]\n${txt}`,time:'maintenant'});
+    saveData();
+  }
+  document.getElementById('fw-content').style.display='none';
+  document.getElementById('fw-ok-t').textContent=cfg.ok;
+  document.getElementById('fw-ok-s').textContent=cfg.oks;
+  document.getElementById('fw-success').style.display='block';
+}
 function resetFW(){document.getElementById('fw-content').style.display='block';document.getElementById('fw-success').style.display='none';document.getElementById('fw-text').value='';}
 
 /* ---- INSCRIPTION ---- */
