@@ -347,20 +347,48 @@ input[type=file]{display:none}
 .search-bar{display:none;padding:8px 12px;background:var(--bg);border:0.5px solid var(--border);border-radius:var(--radius-lg)}
 .search-bar.open{display:block}
 @media(max-width:600px){
+  .app{max-width:100%;width:100%}
   .sidebar{display:none!important}
   .main{flex-direction:column}
-  .topbar{padding:8px 12px}
-  .logo{font-size:16px}
+  .topbar{padding:8px 10px}
+  .logo{font-size:15px}
   .logo-sub{display:none}
-  .screen{padding:8px}
+  .screen{padding:6px}
   .guest-banner{display:none!important}
   .compose-locked{display:none!important}
-  .nav{flex-wrap:nowrap;overflow-x:auto}
-  .nav-item{font-size:9px;padding:6px 2px;min-width:0}
-  .nav-item i{font-size:15px}
+  .nav{flex-wrap:nowrap;overflow-x:auto;padding:0 2px}
+  .nav-item{font-size:8px;padding:5px 1px;min-width:0;flex:1}
+  .nav-item i{font-size:14px}
+  .card{padding:10px;border-radius:8px}
+  .post-text{font-size:12px}
+  .post-name{font-size:12px}
+  .post-sub{font-size:10px}
+  .post-actions{flex-wrap:wrap}
+  .act-btn{font-size:10px;padding:4px 3px}
   .mp-body{flex-direction:column;height:auto}
   .mp-sidebar{width:100%;border-right:none;border-bottom:0.5px solid var(--border);max-height:150px;overflow-y:auto}
   .pub-modal{max-width:100%;margin:0;border-radius:var(--radius-lg)}
+  .modal-overlay{padding:8px}
+  .modal{padding:14px;max-width:100%}
+  .auth-card{padding:14px}
+  .compose-trigger{padding:8px 10px}
+  .filter-btn{font-size:9px;padding:2px 6px}
+  .scope-btn{font-size:10px;padding:3px 8px}
+  .cat-pill{font-size:10px;padding:2px 6px}
+  .cat-picker{gap:3px}
+  .scope-picker{gap:3px}
+  .gbtn{font-size:11px;padding:4px 10px}
+  .regles-header{padding:10px}
+  .regles-header h2{font-size:13px}
+  .admin-row{flex-wrap:wrap;gap:4px}
+  .admin-actions{width:100%;justify-content:flex-start}
+  .membres-row{flex-wrap:wrap;gap:4px}
+  .dash-stat{padding:10px}
+  .dash-stat-val{font-size:22px}
+  .post-media-single img,.post-media-single video{max-height:200px}
+  .icon-btn{width:28px;height:28px;font-size:13px}
+  .top-av,.top-av-text{width:26px;height:26px;font-size:10px}
+  .profile-menu{min-width:160px;right:-5px}
 }
 </style>
 </head>
