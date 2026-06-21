@@ -14,7 +14,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .logo{font-size:19px;font-weight:600;color:#fff;display:flex;align-items:center;gap:7px}
 .logo-sub{font-size:11px;color:#F7C1C1;font-weight:400;margin-left:2px}
 .tb-auth{display:flex;gap:6px}
-.tb-feed{display:none;gap:7px;align-items:center}
+.tb-feed{display:none;gap:7px;align-items:center;position:relative}
 .gbtn{font-size:12px;padding:5px 12px;border-radius:var(--radius);cursor:pointer;font-family:inherit;font-weight:500}
 .gbtn-o{border:1px solid rgba(255,255,255,0.5);background:transparent;color:#fff}
 .gbtn-f{border:none;background:#fff;color:var(--red)}
@@ -1313,64 +1313,77 @@ function toggleProfileMenu(){
   const menu=document.getElementById('profile-menu');
   if(menu)menu.classList.toggle('open');
 }
-let cropState={src:'',x:0,y:0,scale:100,dragging:false,sx:0,sy:0,target:null};
+let cropState={x:0,y:0,scale:100,baseW:0,baseH:0,dragging:false,sx:0,sy:0,target:null};
+
 function changeAvatar(input){
   const file=input.files[0];if(!file)return;
+  input.value='';
   cropState.target='profile';
   openCropper(file);
 }
 function handleAvatarUpload(input){
   const file=input.files[0];if(!file)return;
+  input.value='';
   cropState.target='register';
   openCropper(file);
 }
 function openCropper(file){
   const reader=new FileReader();
-  reader.onload=e=>{
-    cropState.src=e.target.result;cropState.x=0;cropState.y=0;cropState.scale=100;
+  reader.onload=function(e){
+    const src=e.target.result;
+    cropState.x=0;cropState.y=0;cropState.scale=100;
     const img=document.getElementById('crop-img');
-    img.onload=()=>{
-      const zone=200;
-      const ratio=Math.max(zone/img.naturalWidth,zone/img.naturalHeight);
-      img.style.width=(img.naturalWidth*ratio)+'px';
-      img.style.height=(img.naturalHeight*ratio)+'px';
-      cropState.baseW=img.naturalWidth*ratio;cropState.baseH=img.naturalHeight*ratio;
-      cropState.x=(zone-cropState.baseW)/2;cropState.y=(zone-cropState.baseH)/2;
-      updateCropPos();
+    img.onload=function(){
+      const S=200;
+      const ratio=Math.max(S/img.naturalWidth,S/img.naturalHeight);
+      cropState.baseW=img.naturalWidth*ratio;
+      cropState.baseH=img.naturalHeight*ratio;
+      cropState.x=(S-cropState.baseW)/2;
+      cropState.y=(S-cropState.baseH)/2;
+      updateCropImg();
     };
-    img.src=cropState.src;
+    img.src=src;
     document.getElementById('crop-zoom').value=100;
     document.getElementById('modal-crop').style.display='flex';
   };
   reader.readAsDataURL(file);
 }
-function updateCropPos(){
-  const img=document.getElementById('crop-img');
+function updateCropImg(){
+  const img=document.getElementById('crop-img');if(!img)return;
   const s=cropState.scale/100;
-  img.style.width=(cropState.baseW*s)+'px';
-  img.style.height=(cropState.baseH*s)+'px';
+  const w=cropState.baseW*s,h=cropState.baseH*s;
+  img.style.width=w+'px';img.style.height=h+'px';
   img.style.left=cropState.x+'px';img.style.top=cropState.y+'px';
 }
-(function(){
+function initCropper(){
   const zone=document.getElementById('crop-zone');
-  if(!zone)return;
-  function startDrag(ex,ey){cropState.dragging=true;cropState.sx=ex-cropState.x;cropState.sy=ey-cropState.y;zone.style.cursor='grabbing';}
-  function moveDrag(ex,ey){if(!cropState.dragging)return;cropState.x=ex-cropState.sx;cropState.y=ey-cropState.sy;updateCropPos();}
-  function endDrag(){cropState.dragging=false;zone.style.cursor='grab';}
-  zone.addEventListener('mousedown',e=>{e.preventDefault();startDrag(e.clientX,e.clientY);});
-  window.addEventListener('mousemove',e=>{moveDrag(e.clientX,e.clientY);});
-  window.addEventListener('mouseup',endDrag);
-  zone.addEventListener('touchstart',e=>{e.preventDefault();const t=e.touches[0];startDrag(t.clientX,t.clientY);},{passive:false});
-  window.addEventListener('touchmove',e=>{if(cropState.dragging){const t=e.touches[0];moveDrag(t.clientX,t.clientY);}});
-  window.addEventListener('touchend',endDrag);
-  document.getElementById('crop-zoom').addEventListener('input',e=>{
-    const oldS=cropState.scale/100,newS=e.target.value/100;
-    const cx=100,cy=100;
-    cropState.x=cx-(cx-cropState.x)*(newS/oldS);
-    cropState.y=cy-(cy-cropState.y)*(newS/oldS);
-    cropState.scale=+e.target.value;updateCropPos();
-  });
-})();
+  const zoom=document.getElementById('crop-zoom');
+  if(!zone||!zoom)return;
+  function getXY(e){if(e.touches)return[e.touches[0].clientX,e.touches[0].clientY];return[e.clientX,e.clientY];}
+  zone.onmousedown=zone.ontouchstart=function(e){
+    e.preventDefault();
+    const[ex,ey]=getXY(e);
+    cropState.dragging=true;cropState.sx=ex-cropState.x;cropState.sy=ey-cropState.y;
+    zone.style.cursor='grabbing';
+  };
+  document.onmousemove=document.ontouchmove=function(e){
+    if(!cropState.dragging)return;
+    const[ex,ey]=getXY(e);
+    cropState.x=ex-cropState.sx;cropState.y=ey-cropState.sy;
+    updateCropImg();
+  };
+  document.onmouseup=document.ontouchend=function(){
+    cropState.dragging=false;
+    if(zone)zone.style.cursor='grab';
+  };
+  zoom.oninput=function(){
+    const oldS=cropState.scale/100,newS=this.value/100;
+    cropState.x=100-(100-cropState.x)*(newS/oldS);
+    cropState.y=100-(100-cropState.y)*(newS/oldS);
+    cropState.scale=+this.value;
+    updateCropImg();
+  };
+}
 function applyCrop(){
   const canvas=document.createElement('canvas');
   canvas.width=200;canvas.height=200;
@@ -1432,6 +1445,7 @@ function enterFeedSilent(){
 loadData();
 initUsers();
 autoLogin();
+initCropper();
 renderFeed();
 renderRegles();
 buildFP();
