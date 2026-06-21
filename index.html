@@ -563,6 +563,24 @@ input[type=file]{display:none}
     <div class="modal-footer"><button class="modal-cancel" onclick="closeModal('restore')">Annuler</button><button class="modal-confirm green" onclick="confirmRestore()">Confirmer</button></div>
   </div>
 </div>
+<div class="modal-overlay" id="modal-crop" style="display:none">
+  <div class="modal" style="max-width:360px">
+    <div class="modal-title">Recadrer la photo</div>
+    <div class="modal-sub">Déplace et zoome pour ajuster</div>
+    <div style="position:relative;width:200px;height:200px;margin:0 auto 12px;border-radius:50%;overflow:hidden;border:2px solid var(--red);background:#000;cursor:grab;touch-action:none" id="crop-zone">
+      <img id="crop-img" style="position:absolute;user-select:none;-webkit-user-drag:none" draggable="false">
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;padding:0 10px">
+      <i class="ti ti-photo-minus" style="font-size:14px;color:var(--text2)"></i>
+      <input type="range" id="crop-zoom" min="100" max="300" value="100" style="flex:1;accent-color:var(--red)">
+      <i class="ti ti-photo-plus" style="font-size:14px;color:var(--text2)"></i>
+    </div>
+    <div class="modal-footer">
+      <button class="modal-cancel" onclick="closeCrop()">Annuler</button>
+      <button class="modal-confirm" onclick="applyCrop()">Valider</button>
+    </div>
+  </div>
+</div>
 
 <script>
 const DAX_POSTCODES=['40100'];
@@ -715,28 +733,6 @@ function showScreen(n){
 }
 
 /* ---- AVATAR UPLOAD & COMPRESS ---- */
-function handleAvatarUpload(input){
-  const file=input.files[0];if(!file)return;
-  const reader=new FileReader();
-  reader.onload=e=>{
-    const img=new Image();
-    img.onload=()=>{
-      const canvas=document.createElement('canvas');
-      const MAX=200;
-      let w=img.width,h=img.height;
-      if(w>h){if(w>MAX){h=Math.round(h*MAX/w);w=MAX;}}else{if(h>MAX){w=Math.round(w*MAX/h);h=MAX;}}
-      canvas.width=w;canvas.height=h;
-      canvas.getContext('2d').drawImage(img,0,0,w,h);
-      const compressed=canvas.toDataURL('image/jpeg',0.75);
-      pendingAvatar=compressed;
-      const prev=document.getElementById('av-preview');
-      prev.innerHTML=`<img src="${compressed}" alt="avatar"><div class="avatar-edit-btn" onclick="document.getElementById('av-input').click()"><i class="ti ti-camera" style="font-size:11px"></i></div>`;
-      updateAvInitials();
-    };
-    img.src=e.target.result;
-  };
-  reader.readAsDataURL(file);
-}
 
 function updateAvInitials(){
   const p=document.getElementById('rg-prenom'),n=document.getElementById('rg-nom');
@@ -1310,13 +1306,90 @@ function updateTopAvatar(){
   const menu=document.getElementById('profile-menu');
   if(menu){
     const roleLabel={creator:'Créateur',admin:'Admin',member:'Membre'};
-    menu.innerHTML=`<div class="pm-header">${avatarHTML(CU,32)}<div><div class="pm-name">${CU.name}</div><div class="pm-role">${roleLabel[CU.role]||'Membre'} · ${CU.quartier||'Dax'}</div></div></div><button class="pm-logout" onclick="logout()"><i class="ti ti-logout" style="font-size:13px"></i> Se déconnecter</button>`;
+    menu.innerHTML=`<div class="pm-header">${avatarHTML(CU,40)}<div><div class="pm-name">${CU.name}</div><div class="pm-role">${roleLabel[CU.role]||'Membre'} · ${CU.quartier||'Dax'}</div></div></div><button class="pm-logout" style="border-color:var(--border);color:var(--text2);margin-top:0" onclick="document.getElementById('av-change').click()"><i class="ti ti-camera" style="font-size:13px"></i> Changer la photo</button><input type="file" id="av-change" accept="image/*" style="display:none" onchange="changeAvatar(this)"><button class="pm-logout" onclick="logout()"><i class="ti ti-logout" style="font-size:13px"></i> Se déconnecter</button>`;
   }
 }
 function toggleProfileMenu(){
   const menu=document.getElementById('profile-menu');
   if(menu)menu.classList.toggle('open');
 }
+let cropState={src:'',x:0,y:0,scale:100,dragging:false,sx:0,sy:0,target:null};
+function changeAvatar(input){
+  const file=input.files[0];if(!file)return;
+  cropState.target='profile';
+  openCropper(file);
+}
+function handleAvatarUpload(input){
+  const file=input.files[0];if(!file)return;
+  cropState.target='register';
+  openCropper(file);
+}
+function openCropper(file){
+  const reader=new FileReader();
+  reader.onload=e=>{
+    cropState.src=e.target.result;cropState.x=0;cropState.y=0;cropState.scale=100;
+    const img=document.getElementById('crop-img');
+    img.onload=()=>{
+      const zone=200;
+      const ratio=Math.max(zone/img.naturalWidth,zone/img.naturalHeight);
+      img.style.width=(img.naturalWidth*ratio)+'px';
+      img.style.height=(img.naturalHeight*ratio)+'px';
+      cropState.baseW=img.naturalWidth*ratio;cropState.baseH=img.naturalHeight*ratio;
+      cropState.x=(zone-cropState.baseW)/2;cropState.y=(zone-cropState.baseH)/2;
+      updateCropPos();
+    };
+    img.src=cropState.src;
+    document.getElementById('crop-zoom').value=100;
+    document.getElementById('modal-crop').style.display='flex';
+  };
+  reader.readAsDataURL(file);
+}
+function updateCropPos(){
+  const img=document.getElementById('crop-img');
+  const s=cropState.scale/100;
+  img.style.width=(cropState.baseW*s)+'px';
+  img.style.height=(cropState.baseH*s)+'px';
+  img.style.left=cropState.x+'px';img.style.top=cropState.y+'px';
+}
+(function(){
+  const zone=document.getElementById('crop-zone');
+  if(!zone)return;
+  function startDrag(ex,ey){cropState.dragging=true;cropState.sx=ex-cropState.x;cropState.sy=ey-cropState.y;zone.style.cursor='grabbing';}
+  function moveDrag(ex,ey){if(!cropState.dragging)return;cropState.x=ex-cropState.sx;cropState.y=ey-cropState.sy;updateCropPos();}
+  function endDrag(){cropState.dragging=false;zone.style.cursor='grab';}
+  zone.addEventListener('mousedown',e=>{e.preventDefault();startDrag(e.clientX,e.clientY);});
+  window.addEventListener('mousemove',e=>{moveDrag(e.clientX,e.clientY);});
+  window.addEventListener('mouseup',endDrag);
+  zone.addEventListener('touchstart',e=>{e.preventDefault();const t=e.touches[0];startDrag(t.clientX,t.clientY);},{passive:false});
+  window.addEventListener('touchmove',e=>{if(cropState.dragging){const t=e.touches[0];moveDrag(t.clientX,t.clientY);}});
+  window.addEventListener('touchend',endDrag);
+  document.getElementById('crop-zoom').addEventListener('input',e=>{
+    const oldS=cropState.scale/100,newS=e.target.value/100;
+    const cx=100,cy=100;
+    cropState.x=cx-(cx-cropState.x)*(newS/oldS);
+    cropState.y=cy-(cy-cropState.y)*(newS/oldS);
+    cropState.scale=+e.target.value;updateCropPos();
+  });
+})();
+function applyCrop(){
+  const canvas=document.createElement('canvas');
+  canvas.width=200;canvas.height=200;
+  const ctx=canvas.getContext('2d');
+  const img=document.getElementById('crop-img');
+  const s=cropState.scale/100;
+  ctx.drawImage(img,cropState.x,cropState.y,cropState.baseW*s,cropState.baseH*s);
+  const dataUrl=canvas.toDataURL('image/jpeg',0.8);
+  if(cropState.target==='profile'&&CU){
+    CU.avatar=dataUrl;saveData();updateTopAvatar();renderPosts();
+    document.getElementById('profile-menu').classList.remove('open');
+  }else if(cropState.target==='register'){
+    pendingAvatar=dataUrl;
+    const prev=document.getElementById('av-preview');
+    if(prev)prev.innerHTML=`<img src="${dataUrl}" alt="avatar"><div class="avatar-edit-btn" onclick="document.getElementById('av-input').click()"><i class="ti ti-camera" style="font-size:11px"></i></div>`;
+  }
+  closeCrop();
+}
+function closeCrop(){document.getElementById('modal-crop').style.display='none';}
 function logout(){
   CU=null;clearSession();
   document.getElementById('profile-menu').classList.remove('open');
