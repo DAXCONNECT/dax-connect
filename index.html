@@ -1033,19 +1033,20 @@ function sondageHTML(p){
   const total=p.sondage.votes.reduce((a,b)=>a+b,0);
   const myVote=CU?p.sondage.voters[CU.id]:undefined;
   const hasVoted=myVote!==undefined;
+  const showBars=hasVoted||!CU||total>0;
   const opts=p.sondage.opts.map((o,i)=>{
     const pct=total?Math.round(p.sondage.votes[i]/total*100):0;
     const isMyVote=myVote===i;
     return`<div class="sondage-opt${isMyVote?' voted':''}" onclick="${CU?`voteSondage(${p.id},${i})`:''}" style="${CU?'cursor:pointer':'cursor:default'}">
       <div class="sondage-bar-wrap">
         <div class="sondage-label">${o}</div>
-        ${hasVoted?`<div class="sondage-bar"><div class="sondage-fill" style="width:${pct}%"></div></div>`:''}
+        ${showBars?`<div class="sondage-bar"><div class="sondage-fill" style="width:${pct}%"></div></div>`:''}
       </div>
-      ${hasVoted?`<span class="sondage-pct">${pct}%</span>`:''}
+      ${showBars?`<span class="sondage-pct">${pct}%</span>`:''}
       ${isMyVote?'<i class="ti ti-check" style="font-size:13px;color:var(--red)"></i>':''}
     </div>`;
   }).join('');
-  return`<div class="sondage-zone">${opts}<div class="sondage-total">${total} vote${total!==1?'s':''} · ${CU&&!hasVoted?'Clique pour voter':CU?'Clique pour changer':''}</div></div>`;
+  return`<div class="sondage-zone">${opts}<div class="sondage-total">${total} vote${total!==1?'s':''} · ${!CU?'Connecte-toi pour voter':!hasVoted?'Clique pour voter':'Clique pour changer'}</div></div>`;
 }
 
 async function voteSondage(pid,optIdx){
