@@ -302,6 +302,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .spinner-red{border-top-color:var(--red);border-color:rgba(163,45,45,0.2)}
 @keyframes spin{to{transform:rotate(360deg)}}
 input[type=file]{display:none}
+.profile-menu{position:absolute;top:42px;right:0;background:var(--bg);border:0.5px solid var(--border);border-radius:var(--radius-lg);padding:10px;min-width:180px;box-shadow:0 4px 16px rgba(0,0,0,0.12);z-index:100;display:none}
+.profile-menu.open{display:block}
+.pm-header{display:flex;align-items:center;gap:8px;padding-bottom:8px;border-bottom:0.5px solid var(--border);margin-bottom:6px}
+.pm-name{font-size:13px;font-weight:600;color:var(--text)}
+.pm-role{font-size:10px;color:var(--text2)}
+.pm-logout{width:100%;padding:7px 10px;border-radius:var(--radius);border:0.5px solid var(--red-border);background:transparent;color:var(--red);font-size:12px;font-family:inherit;cursor:pointer;display:flex;align-items:center;gap:5px;margin-top:4px}
+.pm-logout:hover{background:#FCEBEB}
 </style>
 </head>
 <body>
@@ -316,7 +323,8 @@ input[type=file]{display:none}
       <button class="icon-btn" onclick="navTo('feedback')"><i class="ti ti-message-report"></i></button>
       <button class="icon-btn" onclick="navTo('mp')"><i class="ti ti-message"></i><span class="notif-dot" id="mp-dot" style="display:none">2</span></button>
       <button class="icon-btn"><i class="ti ti-bell"></i><span class="notif-dot">1</span></button>
-      <div id="top-av-wrap"></div>
+      <div id="top-av-wrap" style="position:relative"></div>
+      <div class="profile-menu" id="profile-menu"></div>
     </div>
   </div>
   <div class="nav" id="main-nav">
@@ -510,12 +518,11 @@ input[type=file]{display:none}
   <div class="screen" id="screen-login">
     <div class="auth-card">
       <div class="auth-logo"><i class="ti ti-map-pin"></i> Dax Connect</div>
-      <div class="auth-sub">Connexion — choisir un profil de démo</div>
-      <div style="display:flex;flex-direction:column;gap:7px;margin-bottom:10px">
-        <button class="sub-btn" style="background:#791F1F;display:flex;align-items:center;justify-content:center;gap:7px" onclick="loginAs('creator')"><i class="ti ti-crown" style="font-size:14px"></i> Créateur — Gilles L. (accès total)</button>
-        <button class="sub-btn" style="background:#185FA5;display:flex;align-items:center;justify-content:center;gap:7px" onclick="loginAs('admin1')"><i class="ti ti-shield" style="font-size:14px"></i> Admin — Marie D.</button>
-        <button class="sub-btn" style="background:#5F5E5A;display:flex;align-items:center;justify-content:center;gap:7px" onclick="loginAs('member1')"><i class="ti ti-user" style="font-size:14px"></i> Membre — Paul R.</button>
-      </div>
+      <div class="auth-sub">Connexion à votre compte</div>
+      <div class="field"><label>Email <span class="req">*</span></label><input type="email" id="lg-email" placeholder="votre@email.fr" autocomplete="email"></div>
+      <div class="field"><label>Mot de passe <span class="req">*</span></label><input type="password" id="lg-pwd" placeholder="Votre mot de passe" autocomplete="current-password"></div>
+      <div class="hint err" id="lg-error" style="margin-bottom:8px"></div>
+      <button class="sub-btn" onclick="loginReal()">Se connecter</button>
       <div class="login-link">Pas encore membre ? <a onclick="showScreen('register')">Créer un compte</a></div>
     </div>
   </div>
@@ -560,6 +567,8 @@ input[type=file]{display:none}
 <script>
 const DAX_POSTCODES=['40100'];
 const ANTHROPIC_API_KEY=''; // ← Mets ta clé API ici (sk-ant-...)
+const CREATOR_EMAIL='contact@droneplusservices.com';
+const CREATOR_PWD='DaxConnect2026!';
 let CU=null,selectedDur='24h',targetUid=null,selectedCat='info',fwType='bug',activeConvId=null,addrTimer=null,registeredFPs=[],currentFP='',pendingAvatar=null;
 const pendingMedia=[],sondageOpts=['',''];
 
@@ -586,13 +595,45 @@ function getQuartier(lng,lat){
   return best;
 }
 
-const USERS=[
-  {id:'creator',initials:'GL',color:'#F7C1C1',tc:'#791F1F',name:'Gilles LARRIEU',role:'creator',rue:'Rue des Jacobins',quartier:'Saint-Pierre',status:'active',statusInfo:'',avatar:null},
-  {id:'admin1',initials:'MD',color:'#B5D4F4',tc:'#0C447C',name:'Marie DUPONT',role:'admin',rue:'Rue Cazade',quartier:'Saint-Pierre',status:'active',statusInfo:'',avatar:null},
-  {id:'member1',initials:'PR',color:'#FAC775',tc:'#633806',name:'Paul RENAUD',role:'member',rue:'Av. Victor Hugo',quartier:'Le Sablar',status:'active',statusInfo:'',avatar:null},
-  {id:'member2',initials:'SL',color:'#F4C0D1',tc:'#4B1528',name:'Sophie LACOMBE',role:'member',rue:'Rue Ste-Ursule',quartier:'Centre-ville',status:'suspended',statusInfo:'Suspendu 3 jours — Contenu non conforme',avatar:null},
-  {id:'member3',initials:'JB',color:'#CED0F6',tc:'#26215C',name:'Jean-Marc BOUCHARD',role:'member',rue:'Av. de la Gare',quartier:'Gare',status:'active',statusInfo:'',avatar:null},
-];
+/* ---- PERSISTENCE localStorage ---- */
+function saveData(){
+  localStorage.setItem('dc_users',JSON.stringify(USERS));
+  localStorage.setItem('dc_posts',JSON.stringify(POSTS));
+  localStorage.setItem('dc_convs',JSON.stringify(CONVS));
+  localStorage.setItem('dc_modlog',JSON.stringify(MOD_LOG));
+  localStorage.setItem('dc_fps',JSON.stringify(registeredFPs));
+}
+function loadData(){
+  try{
+    const u=localStorage.getItem('dc_users');
+    const p=localStorage.getItem('dc_posts');
+    const c=localStorage.getItem('dc_convs');
+    const m=localStorage.getItem('dc_modlog');
+    const f=localStorage.getItem('dc_fps');
+    if(u)USERS.splice(0,USERS.length,...JSON.parse(u));
+    if(p){const parsed=JSON.parse(p);parsed.forEach(x=>{x.createdAt=new Date(x.createdAt);if(x.eventDate)x.eventDate=new Date(x.eventDate);});POSTS.splice(0,POSTS.length,...parsed);}
+    if(c)CONVS.splice(0,CONVS.length,...JSON.parse(c));
+    if(m)MOD_LOG.splice(0,MOD_LOG.length,...JSON.parse(m));
+    if(f)registeredFPs=JSON.parse(f);
+  }catch(e){console.warn('Erreur chargement données',e);}
+}
+function autoLogin(){
+  const sid=localStorage.getItem('dc_session');
+  if(sid){
+    const u=USERS.find(x=>x.id===sid);
+    if(u&&u.status==='active'){CU=u;enterFeedSilent();}
+  }
+}
+function saveSession(){if(CU)localStorage.setItem('dc_session',CU.id);}
+function clearSession(){localStorage.removeItem('dc_session');}
+
+const CREATOR_DEFAULT={id:'creator',initials:'GL',color:'#F7C1C1',tc:'#791F1F',name:'Gilles LARRIEU',role:'creator',rue:'Rue des Jacobins',quartier:'Saint-Pierre',status:'active',statusInfo:'',avatar:null,email:'contact@droneplusservices.com',pwd:'DaxConnect2026!'};
+
+let USERS=[];
+function initUsers(){
+  if(!USERS.length){USERS.push({...CREATOR_DEFAULT});saveData();}
+  if(!USERS.find(u=>u.id==='creator')){USERS.unshift({...CREATOR_DEFAULT});saveData();}
+}
 
 const CATS=[
   {id:'evenement',label:'Événement',icon:'ti-calendar-event'},
@@ -618,24 +659,9 @@ const REGLES=[
   {t:'Sanctions',d:'Non-respect : avertissement, suspension (24h/3j/1 semaine) ou exclusion définitive. Décision finale sans recours.'},
 ];
 
-const NOW=new Date();
-let POSTS=[
-  {id:1,authorId:'admin1',rue:'Rue Cazade',time:'il y a 12 min',cat:'alerte',text:'Travaux rue des Jacobins jusqu\'au vendredi 27. Circulation coupée entre 8h et 17h.',media:[],likes:14,liked:false,comments:[{id:1,authorId:'member1',text:'Merci pour l\'info !',time:'il y a 10 min'},{id:2,authorId:'member3',text:'Ah mince, merci !',time:'il y a 8 min'}],showComments:false,createdAt:new Date(NOW-2*60*1000),eventDate:null,sondage:null},
-  {id:2,authorId:'member1',rue:'Av. Victor Hugo',time:'il y a 1h',cat:'evenement',text:'Brocante samedi 28 juin de 8h à 13h place Saint-Pierre ! Venez nombreux.',media:[{type:'image',url:'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=600&q=80'}],likes:31,liked:false,comments:[{id:3,authorId:'creator',text:'Super initiative ! Je passerai.',time:'il y a 45 min'}],showComments:false,createdAt:new Date(NOW-60*60*1000),eventDate:new Date('2026-06-28'),sondage:null},
-  {id:3,authorId:'member3',rue:'Av. de la Gare',time:'il y a 2h',cat:'sondage',text:'À quelle heure préférez-vous la brocante ?',media:[],likes:5,liked:false,comments:[],showComments:false,createdAt:new Date(NOW-2*60*60*1000),eventDate:null,sondage:{opts:['8h–10h','10h–12h','12h–14h'],votes:[4,7,2],voted:null}},
-  {id:4,authorId:'member1',rue:'Av. Victor Hugo',time:'il y a 5h',cat:'covoiturage',text:'Cherche covoiturage Dax → Bordeaux vendredi 27 juin vers 7h30. Participation aux frais.',media:[],likes:2,liked:false,comments:[],showComments:false,createdAt:new Date(NOW-5*60*60*1000),eventDate:null,sondage:null},
-];
-
-const CONVS=[
-  {id:'c1',withId:'admin1',unread:true,messages:[{from:'admin1',text:'Bonjour Gilles, question sur la modération.',time:'10:31'},{from:'creator',text:'Dis-moi Marie !',time:'10:32'},{from:'admin1',text:'On peut supprimer sans prévenir l\'auteur ?',time:'10:33'},{from:'creator',text:'Oui pour les contenus manifestes. Sinon on avertit.',time:'10:35'}]},
-  {id:'c2',withId:'member1',unread:true,messages:[{from:'member1',text:'Salut ! Je veux mettre une pub pour ma boulangerie.',time:'hier 14:22'},{from:'creator',text:'Avec plaisir Paul ! Dis-moi ce que tu veux afficher.',time:'hier 15:01'}]},
-  {id:'c3',withId:'member3',unread:false,messages:[{from:'member3',text:'Merci pour Dax Connect !',time:'lundi'},{from:'creator',text:'Merci Jean-Marc !',time:'lundi'}]},
-];
-
-let MOD_LOG=[
-  {icon:'ti-user-minus',bg:'#FAEEDA',ic:'#854F0B',text:'Sophie L. suspendue 3 jours par Marie D.',time:'il y a 2h'},
-  {icon:'ti-shield',bg:'#E6F1FB',ic:'#185FA5',text:'Marie D. nommée Admin par Gilles L.',time:'il y a 3 jours'},
-];
+let POSTS=[];
+let CONVS=[];
+let MOD_LOG=[];
 
 /* ---- UTILS ---- */
 function getU(id){return USERS.find(u=>u.id===id)||{initials:'?',color:'#ccc',tc:'#333',name:'Inconnu',role:'member',rue:'Dax',status:'active',statusInfo:'',avatar:null};}
@@ -867,7 +893,7 @@ function voteSondage(pid,optIdx){
   if(!CU)return;
   const p=POSTS.find(x=>x.id===pid);
   if(!p||!p.sondage||p.sondage.voted!==null)return;
-  p.sondage.votes[optIdx]++;p.sondage.voted=optIdx;
+  p.sondage.votes[optIdx]++;p.sondage.voted=optIdx;saveData();
   document.getElementById('post-'+pid).outerHTML=renderPost(p);
 }
 
@@ -911,11 +937,11 @@ function renderPost(p){
 }
 
 function renderPosts(){document.getElementById('feed-posts').innerHTML=POSTS.map(renderPost).join('');}
-function togLike(id){if(!CU){showScreen('register');return;}const p=POSTS.find(x=>x.id===id);if(!p)return;p.liked=!p.liked;p.likes+=p.liked?1:-1;document.getElementById('post-'+id).outerHTML=renderPost(p);}
+function togLike(id){if(!CU){showScreen('register');return;}const p=POSTS.find(x=>x.id===id);if(!p)return;p.liked=!p.liked;p.likes+=p.liked?1:-1;saveData();document.getElementById('post-'+id).outerHTML=renderPost(p);}
 function togCom(id){if(!CU){showScreen('register');return;}const p=POSTS.find(x=>x.id===id);if(!p)return;p.showComments=!p.showComments;document.getElementById('post-'+id).outerHTML=renderPost(p);}
-function sendCom(pid){const inp=document.getElementById('ci-'+pid);if(!inp||!CU)return;const txt=inp.value.trim();if(!txt)return;const p=POSTS.find(x=>x.id===pid);if(!p)return;p.comments.push({id:Date.now(),authorId:CU.id,text:txt,time:'À l\'instant'});document.getElementById('post-'+pid).outerHTML=renderPost(p);}
-function delPost(id){if(!canMod())return;POSTS=POSTS.filter(p=>p.id!==id);renderPosts();}
-function delCom(pid,cid){if(!canMod())return;const p=POSTS.find(x=>x.id===pid);if(!p)return;p.comments=p.comments.filter(c=>c.id!==cid);document.getElementById('post-'+pid).outerHTML=renderPost(p);}
+function sendCom(pid){const inp=document.getElementById('ci-'+pid);if(!inp||!CU)return;const txt=inp.value.trim();if(!txt)return;const p=POSTS.find(x=>x.id===pid);if(!p)return;p.comments.push({id:Date.now(),authorId:CU.id,text:txt,time:'À l\'instant'});saveData();document.getElementById('post-'+pid).outerHTML=renderPost(p);}
+function delPost(id){if(!canMod())return;POSTS=POSTS.filter(p=>p.id!==id);saveData();renderPosts();}
+function delCom(pid,cid){if(!canMod())return;const p=POSTS.find(x=>x.id===pid);if(!p)return;p.comments=p.comments.filter(c=>c.id!==cid);saveData();document.getElementById('post-'+pid).outerHTML=renderPost(p);}
 
 function publishPost(){
   const txt=(document.getElementById('ctxt')||{value:''}).value.trim();
@@ -931,7 +957,7 @@ function publishPost(){
   const eventDate=selectedCat==='evenement'&&edInput&&edInput.value?new Date(edInput.value):null;
   POSTS.unshift({id:Date.now(),authorId:CU.id,rue:CU.quartier||'Dax',time:'À l\'instant',cat:selectedCat,text:txt,media:pendingMedia.map(m=>({type:m.type,url:m.url})),likes:0,liked:false,comments:[],showComments:false,createdAt:new Date(),eventDate,sondage});
   pendingMedia.length=0;sondageOpts.splice(0,sondageOpts.length,'','');
-  renderFeed();
+  saveData();renderFeed();
 }
 
 /* ---- SIDEBAR ---- */
@@ -973,10 +999,7 @@ function renderChat(conv){
 function sendMP(cid){
   const c=CONVS.find(x=>x.id===cid),inp=document.getElementById('mp-inp');
   if(!c||!inp||!CU)return;const txt=inp.value.trim();if(!txt)return;
-  c.messages.push({from:CU.id,text:txt,time:'maintenant'});inp.value='';renderMP();
-  const replies={'admin1':['Ok merci !','Reçu !'],'member1':['Super !','Nickel.'],'member3':['Merci !','Ok parfait.'],'creator':['Bonjour !','Merci !']};
-  const r=replies[c.withId];
-  if(r)setTimeout(()=>{c.messages.push({from:c.withId,text:r[Math.floor(Math.random()*r.length)],time:'maintenant'});c.unread=false;renderMP();},1100);
+  c.messages.push({from:CU.id,text:txt,time:'maintenant'});inp.value='';saveData();renderMP();
 }
 
 /* ---- MEMBRES ---- */
@@ -1025,6 +1048,7 @@ function publiOfficielle(){
   if(!txt)return;
   const catMap={bienvenue:'info',info:'info',alerte:'alerte',evenement:'evenement',regles:'info'};
   POSTS.unshift({id:Date.now(),authorId:CU.id,rue:CU.quartier||'Dax',time:'À l\'instant',cat:catMap[publiType]||'info',text:`📣 [Message officiel]\n\n${txt}`,media:[],likes:0,liked:false,comments:[],showComments:false,createdAt:new Date(),eventDate:null,sondage:null});
+  saveData();
   document.getElementById('publi-text').value='';
   document.getElementById('publi-preview').style.display='none';
   renderAdmin();
@@ -1105,15 +1129,15 @@ function renderAdmin(){
   // LOG
   document.getElementById('mod-log').innerHTML=MOD_LOG.length?MOD_LOG.map(l=>`<div class="log-item"><div class="log-icon" style="background:${l.bg};color:${l.ic}"><i class="ti ${l.icon}"></i></div><div><div style="font-size:12px">${l.text}</div><div style="font-size:10px;color:var(--text2)">${l.time}</div></div></div>`).join(''):'<div style="padding:10px;font-size:12px;color:var(--text2)">Aucune action.</div>';
 }
-function promAdmin(id){const u=USERS.find(x=>x.id===id);if(!u)return;u.role='admin';MOD_LOG.unshift({icon:'ti-shield',bg:'#E6F1FB',ic:'#185FA5',text:`${u.name} nommé(e) Admin par Gilles L.`,time:'à l\'instant'});renderAdmin();renderPosts();}
-function demAdmin(id){const u=USERS.find(x=>x.id===id);if(!u)return;u.role='member';MOD_LOG.unshift({icon:'ti-shield-off',bg:'#FAEEDA',ic:'#854F0B',text:`${u.name} retiré(e) des Admins par Gilles L.`,time:'à l\'instant'});renderAdmin();renderPosts();}
+function promAdmin(id){const u=USERS.find(x=>x.id===id);if(!u)return;u.role='admin';MOD_LOG.unshift({icon:'ti-shield',bg:'#E6F1FB',ic:'#185FA5',text:`${u.name} nommé(e) Admin par ${CU.name}`,time:'à l\'instant'});saveData();renderAdmin();renderPosts();}
+function demAdmin(id){const u=USERS.find(x=>x.id===id);if(!u)return;u.role='member';MOD_LOG.unshift({icon:'ti-shield-off',bg:'#FAEEDA',ic:'#854F0B',text:`${u.name} retiré(e) des Admins par ${CU.name}`,time:'à l\'instant'});saveData();renderAdmin();renderPosts();}
 function openSuspend(id){targetUid=id;selectedDur='24h';document.querySelectorAll('.dur-btn').forEach((b,i)=>b.classList.toggle('active',i===0));const u=getU(id);document.getElementById('ms-title').textContent=`Suspendre ${u.name}`;document.getElementById('ms-sub').textContent=`Décision finale, sans recours possible.`;document.getElementById('sus-raison').value='';document.getElementById('modal-suspend').style.display='flex';}
 function openBan(id){targetUid=id;const u=getU(id);document.getElementById('mb-sub').textContent=`${u.name} sera exclu(e) définitivement.`;document.getElementById('ban-raison').value='';document.getElementById('modal-ban').style.display='flex';}
 function openRestore(id){targetUid=id;const u=getU(id);document.getElementById('mr-sub').textContent=u.status==='banned'?`Réintégrer ${u.name} ?`:`Lever la suspension de ${u.name} ?`;document.getElementById('modal-restore').style.display='flex';}
 function selDur(btn,dur){selectedDur=dur;document.querySelectorAll('.dur-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');}
-function confirmSuspend(){const u=USERS.find(x=>x.id===targetUid);if(!u)return;const r=document.getElementById('sus-raison').value.trim();u.status='suspended';u.statusInfo=`Suspendu ${selectedDur}${r?' — '+r:''}`;MOD_LOG.unshift({icon:'ti-user-minus',bg:'#FAEEDA',ic:'#854F0B',text:`${u.name} suspendu(e) ${selectedDur} par ${CU.name}${r?' — '+r:''}`,time:'à l\'instant'});closeModal('suspend');renderAdmin();}
-function confirmBan(){const u=USERS.find(x=>x.id===targetUid);if(!u)return;const r=document.getElementById('ban-raison').value.trim();u.status='banned';u.statusInfo=`Exclu définitivement${r?' — '+r:''}`;MOD_LOG.unshift({icon:'ti-user-x',bg:'#FCEBEB',ic:'#A32D2D',text:`${u.name} exclu(e) par ${CU.name}${r?' — '+r:''}`,time:'à l\'instant'});closeModal('ban');renderAdmin();}
-function confirmRestore(){const u=USERS.find(x=>x.id===targetUid);if(!u)return;const wb=u.status==='banned';u.status='active';u.statusInfo='';MOD_LOG.unshift({icon:'ti-user-check',bg:'#EAF3DE',ic:'#3B6D11',text:`${u.name} ${wb?'réintégré(e)':'suspension levée'} par ${CU.name}`,time:'à l\'instant'});closeModal('restore');renderAdmin();}
+function confirmSuspend(){const u=USERS.find(x=>x.id===targetUid);if(!u)return;const r=document.getElementById('sus-raison').value.trim();u.status='suspended';u.statusInfo=`Suspendu ${selectedDur}${r?' — '+r:''}`;MOD_LOG.unshift({icon:'ti-user-minus',bg:'#FAEEDA',ic:'#854F0B',text:`${u.name} suspendu(e) ${selectedDur} par ${CU.name}${r?' — '+r:''}`,time:'à l\'instant'});saveData();closeModal('suspend');renderAdmin();}
+function confirmBan(){const u=USERS.find(x=>x.id===targetUid);if(!u)return;const r=document.getElementById('ban-raison').value.trim();u.status='banned';u.statusInfo=`Exclu définitivement${r?' — '+r:''}`;MOD_LOG.unshift({icon:'ti-user-x',bg:'#FCEBEB',ic:'#A32D2D',text:`${u.name} exclu(e) par ${CU.name}${r?' — '+r:''}`,time:'à l\'instant'});saveData();closeModal('ban');renderAdmin();}
+function confirmRestore(){const u=USERS.find(x=>x.id===targetUid);if(!u)return;const wb=u.status==='banned';u.status='active';u.statusInfo='';MOD_LOG.unshift({icon:'ti-user-check',bg:'#EAF3DE',ic:'#3B6D11',text:`${u.name} ${wb?'réintégré(e)':'suspension levée'} par ${CU.name}`,time:'à l\'instant'});saveData();closeModal('restore');renderAdmin();}
 function closeModal(n){document.getElementById('modal-'+n).style.display='none';targetUid=null;}
 
 /* ---- FEEDBACK ---- */
@@ -1254,8 +1278,15 @@ function submitReg(){
   const addr=document.getElementById('rg-addr').value.trim();
   const quartierSel=document.getElementById('pf-quartier');
   const quartier=quartierSel&&quartierSel.value?quartierSel.value:'Dax';
-  const nu={id:'u'+Date.now(),initials:(p[0]+n[0]).toUpperCase(),color:'#9FE1CB',tc:'#085041',name:`${p} ${n.toUpperCase()}`,role:'member',rue:addr.split(',')[0]||'Dax',quartier:quartier,status:'active',statusInfo:'',avatar:pendingAvatar};
+  const email=document.getElementById('rg-email').value.trim().toLowerCase();
+  const pwd=document.getElementById('rg-pwd').value;
+  if(USERS.find(u=>u.email===email)){setFld('email',false,'Un compte existe déjà avec cet email.');return;}
+  const colors=['#9FE1CB','#B5D4F4','#FAC775','#F4C0D1','#CED0F6','#F7C1C1','#C8E6C9','#FFE0B2'];
+  const tcs=['#085041','#0C447C','#633806','#4B1528','#26215C','#791F1F','#1B5E20','#E65100'];
+  const ci=Math.floor(Math.random()*colors.length);
+  const nu={id:'u'+Date.now(),initials:(p[0]+n[0]).toUpperCase(),color:colors[ci],tc:tcs[ci],name:`${p} ${n.toUpperCase()}`,role:'member',rue:addr.split(',')[0]||'Dax',quartier:quartier,status:'active',statusInfo:'',avatar:pendingAvatar,email:email,pwd:pwd};
   USERS.push(nu);registeredFPs.push(currentFP);CU=nu;
+  saveData();saveSession();
   updateTopAvatar();
   document.getElementById('suc-title').textContent=`Bienvenue ${p} !`;
   document.getElementById('suc-sub').textContent=`Compte créé. Tu rejoins Dax Connect en tant que membre.`;
@@ -1266,25 +1297,64 @@ function enterFeed(){navTo('feed');}
 
 function updateTopAvatar(){
   const wrap=document.getElementById('top-av-wrap');if(!wrap||!CU)return;
-  if(CU.avatar){wrap.innerHTML=`<div class="top-av" onclick="navTo('profil')"><img src="${CU.avatar}" alt="${CU.name}"></div>`;}
-  else{wrap.innerHTML=`<div class="top-av-text" onclick="navTo('profil')">${CU.initials}</div>`;}
+  if(CU.avatar){wrap.innerHTML=`<div class="top-av" onclick="toggleProfileMenu()"><img src="${CU.avatar}" alt="${CU.name}"></div>`;}
+  else{wrap.innerHTML=`<div class="top-av-text" onclick="toggleProfileMenu()">${CU.initials}</div>`;}
+  const menu=document.getElementById('profile-menu');
+  if(menu){
+    const roleLabel={creator:'Créateur',admin:'Admin',member:'Membre'};
+    menu.innerHTML=`<div class="pm-header">${avatarHTML(CU,32)}<div><div class="pm-name">${CU.name}</div><div class="pm-role">${roleLabel[CU.role]||'Membre'} · ${CU.quartier||'Dax'}</div></div></div><button class="pm-logout" onclick="logout()"><i class="ti ti-logout" style="font-size:13px"></i> Se déconnecter</button>`;
+  }
 }
+function toggleProfileMenu(){
+  const menu=document.getElementById('profile-menu');
+  if(menu)menu.classList.toggle('open');
+}
+function logout(){
+  CU=null;clearSession();
+  document.getElementById('profile-menu').classList.remove('open');
+  document.getElementById('tb-auth').style.display='flex';
+  document.getElementById('tb-feed').style.display='none';
+  document.getElementById('nav-admin').style.display='none';
+  navTo('feed');
+}
+document.addEventListener('click',function(e){
+  const menu=document.getElementById('profile-menu');
+  const wrap=document.getElementById('top-av-wrap');
+  if(menu&&!menu.contains(e.target)&&!wrap.contains(e.target))menu.classList.remove('open');
+});
 
 /* ---- LOGIN ---- */
-function loginAs(id){
-  CU=getU(id);
+function loginReal(){
+  const email=(document.getElementById('lg-email')||{}).value.trim().toLowerCase();
+  const pwd=(document.getElementById('lg-pwd')||{}).value;
+  const errEl=document.getElementById('lg-error');
+  if(!email||!pwd){if(errEl)errEl.textContent='Remplis tous les champs.';return;}
+  const u=USERS.find(x=>x.email===email&&x.pwd===pwd);
+  if(!u){if(errEl)errEl.textContent='Email ou mot de passe incorrect.';return;}
+  if(u.status==='banned'){if(errEl)errEl.textContent='Ce compte a été exclu.';return;}
+  if(u.status==='suspended'){if(errEl)errEl.textContent='Compte suspendu : '+u.statusInfo;return;}
+  CU=u;saveSession();
   document.getElementById('tb-auth').style.display='none';document.getElementById('tb-feed').style.display='flex';
   updateTopAvatar();
   if(CU.role==='creator')document.getElementById('nav-admin').style.display='flex';
-  const dot=document.getElementById('mp-dot');if(dot){dot.style.display='flex';dot.textContent='2';}
+  navTo('feed');
+}
+
+function enterFeedSilent(){
+  document.getElementById('tb-auth').style.display='none';document.getElementById('tb-feed').style.display='flex';
+  updateTopAvatar();
+  if(CU.role==='creator')document.getElementById('nav-admin').style.display='flex';
   navTo('feed');
 }
 
 /* INIT */
+loadData();
+initUsers();
+autoLogin();
 renderFeed();
 renderRegles();
 buildFP();
-setInterval(()=>{autoExpire();if(document.getElementById('screen-feed').classList.contains('visible'))renderPosts();},60000);
+setInterval(()=>{autoExpire();saveData();if(document.getElementById('screen-feed').classList.contains('visible'))renderPosts();},60000);
 </script>
 </body>
 </html>
