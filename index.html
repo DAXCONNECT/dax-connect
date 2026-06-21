@@ -897,6 +897,13 @@ function toggleSearch(){
   bar.classList.toggle('open');
   if(bar.classList.contains('open'))setTimeout(()=>document.getElementById('search-input').focus(),100);
 }
+document.addEventListener('click',function(e){
+  const bar=document.getElementById('search-bar');
+  if(!bar||!bar.classList.contains('open'))return;
+  if(bar.contains(e.target))return;
+  if(e.target.closest('.icon-btn')&&e.target.closest('.icon-btn').querySelector('.ti-search'))return;
+  bar.classList.remove('open');
+});
 
 function renderFilters(){
   const catEl=document.getElementById('filter-cats');
