@@ -421,6 +421,14 @@ input[type=file]{display:none}
     <!-- STATS GRID -->
     <div id="dash-stats" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px"></div>
 
+    <!-- STOCKAGE R2 -->
+    <div class="card" style="margin-bottom:10px" id="storage-card">
+      <div class="admin-title">☁️ Stockage médias (Cloudflare R2)</div>
+      <div id="storage-stats" style="padding:4px 0">
+        <div style="font-size:12px;color:var(--text2)"><span class="spinner-sm spinner-red"></span> Chargement…</div>
+      </div>
+    </div>
+
     <!-- PUBLICATION OFFICIELLE -->
     <div class="card" style="margin-bottom:10px">
       <div class="admin-title">📣 Publier un message officiel</div>
@@ -1246,6 +1254,30 @@ function sendWelcome(uid){
   document.body.appendChild(ok);setTimeout(()=>ok.remove(),2500);
 }
 
+async function loadStorageStats(){
+  const el=document.getElementById('storage-stats');if(!el)return;
+  try{
+    const r=await fetch(UPLOAD_URL.replace('/upload','/stats'));
+    const d=await r.json();
+    const pct=d.usedPercent;
+    const barColor=pct>80?'var(--red)':pct>50?'#854F0B':'#3B6D11';
+    el.innerHTML=`
+      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px">
+        <div style="font-size:20px;font-weight:700;color:var(--text)">${d.totalSizeMB} Mo</div>
+        <div style="font-size:11px;color:var(--text2)">sur ${d.limitGB} Go gratuits</div>
+      </div>
+      <div style="height:8px;background:#eee;border-radius:4px;overflow:hidden;margin-bottom:6px">
+        <div style="height:100%;width:${Math.max(pct,0.5)}%;background:${barColor};border-radius:4px;transition:width .4s"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text2)">
+        <span>${d.totalFiles} fichier${d.totalFiles!==1?'s':''} stocké${d.totalFiles!==1?'s':''}</span>
+        <span>${pct}% utilisé</span>
+      </div>`;
+  }catch(e){
+    el.innerHTML='<div style="font-size:12px;color:var(--text2)">Impossible de charger les stats stockage.</div>';
+  }
+}
+
 function renderAdmin(){
   if(!isCreator())return;
 
@@ -1264,6 +1296,8 @@ function renderAdmin(){
     <div class="dash-stat green"><div class="dash-stat-val">${totalPosts}</div><div class="dash-stat-label">Posts publiés</div><div class="dash-stat-sub">${postsAujourdhui} aujourd'hui</div></div>
     <div class="dash-stat blue"><div class="dash-stat-val">${totalComments}</div><div class="dash-stat-label">Commentaires</div><div class="dash-stat-sub">Moy. ${totalPosts?Math.round(totalComments/totalPosts*10)/10:0} par post</div></div>
     <div class="dash-stat orange"><div class="dash-stat-val">${totalLikes}</div><div class="dash-stat-label">Likes totaux</div><div class="dash-stat-sub">${admins} admin(s) nommé(s)</div></div>`;
+
+  loadStorageStats();
 
   // NOUVEAUX MEMBRES
   const newMembers=USERS.filter(u=>u.id!==CU.id&&u.status==='active');
