@@ -785,9 +785,10 @@ async function api(path,method='GET',body=null){
 
 async function loadData(){
   try{
-    const[uRes,pRes]=await Promise.all([api('/users'),api('/posts')]);
+    const uid=CU?CU.id:'';
+    const[uRes,pRes]=await Promise.all([api('/users'),api('/posts?userId='+uid)]);
     USERS.splice(0,USERS.length,...(uRes.users||[]));
-    const posts=(pRes.posts||[]).map(p=>{p.createdAt=new Date(p.createdAt);if(p.eventDate)p.eventDate=new Date(p.eventDate);p.showComments=false;p.liked=false;return p;});
+    const posts=(pRes.posts||[]).map(p=>{p.createdAt=new Date(p.createdAt);if(p.eventDate)p.eventDate=new Date(p.eventDate);p.showComments=false;if(!p.reactions)p.reactions={};if(!p.myReactions)p.myReactions=[];return p;});
     POSTS.splice(0,POSTS.length,...posts);
   }catch(e){console.warn('Erreur chargement cloud',e);}
 }
@@ -1145,21 +1146,22 @@ function renderPost(p){
   const au=getU(p.authorId),meta=catMeta(p.cat);
   const exp=expiryInfo(p);
   let acts='';
+  const REACTS=[{type:'heart',icon:'ti-heart',label:'❤️'},{type:'like',icon:'ti-thumb-up',label:'👍'},{type:'dislike',icon:'ti-thumb-down',label:'👎'},{type:'laugh',icon:'ti-mood-happy',label:'😂'}];
   if(CU){
     const del=canMod()?`<button class="act-btn mod" onclick="delPost(${p.id})" title="Supprimer"><i class="ti ti-trash"></i></button>`:'';
     const edit=CU.id===p.authorId?`<button class="act-btn" onclick="editPost(${p.id})" title="Modifier"><i class="ti ti-pencil"></i></button>`:'';
-    acts=`<button class="act-btn${p.liked?' liked':''}" onclick="togLike(${p.id})"><i class="ti ti-heart"></i> ${p.likes}</button>
+    const reactBtns=REACTS.map(r=>{const c=(p.reactions&&p.reactions[r.type])||0;const mine=p.myReactions&&p.myReactions.includes(r.type);return`<button class="act-btn${mine?' liked':''}" onclick="togReact(${p.id},'${r.type}')" title="${r.label}">${r.label}${c?' '+c:''}</button>`;}).join('');
+    acts=`${reactBtns}
     <button class="act-btn" onclick="togCom(${p.id})"><i class="ti ti-message-circle"></i> ${p.comments.length}</button>
-    <button class="act-btn" onclick="openMP('${p.authorId}')"><i class="ti ti-message"></i> MP</button>
     ${edit}${del}`;
   }else{
-    acts=`<div class="tip-wrap"><button class="act-btn locked" onclick="showScreen('register')"><i class="ti ti-heart"></i> ${p.likes}</button><span class="tip">Connecte-toi</span></div>
-    <div class="tip-wrap"><button class="act-btn locked" onclick="showScreen('register')"><i class="ti ti-message-circle"></i> ${p.comments.length}</button><span class="tip">Connecte-toi</span></div>
-    <div class="tip-wrap"><button class="act-btn locked" onclick="showScreen('register')"><i class="ti ti-message"></i></button><span class="tip">Connecte-toi</span></div>`;
+    const reactView=REACTS.map(r=>{const c=(p.reactions&&p.reactions[r.type])||0;return c?`<span class="act-btn" style="cursor:default">${r.label} ${c}</span>`:'';}).filter(Boolean).join('');
+    acts=`${reactView||'<span class="act-btn" style="cursor:default">❤️ 0</span>'}
+    <span class="act-btn" style="cursor:default"><i class="ti ti-message-circle"></i> ${p.comments.length}</span>`;
   }
   const comsHtml=p.showComments?`<div class="comments-zone">
     ${p.comments.map(c=>{const ca=getU(c.authorId);const dc=canMod()?`<button class="comment-del" onclick="delCom(${p.id},${c.id})"><i class="ti ti-trash" style="font-size:10px"></i></button>`:'';
-    return`<div class="comment">${avatarHTML(ca,24)}<div class="comment-bubble"><div style="display:flex;align-items:center;gap:5px"><span class="comment-author">${ca.name}</span>${rb(ca.role)}<span style="font-size:9px;color:var(--text2);margin-left:auto">${c.time}</span></div><div class="comment-text">${c.text}</div></div>${dc}</div>`;}).join('')}
+    return`<div class="comment">${avatarHTML(ca,24)}<div class="comment-bubble"><div style="display:flex;align-items:center;gap:5px"><span class="comment-author">${ca.name}</span>${rb(ca.role)}<span style="font-size:9px;color:var(--text2);margin-left:auto">${c.time}</span></div>${c.replyTo?`<div style="font-size:10px;color:var(--text3);margin-bottom:2px;border-left:2px solid var(--border);padding-left:6px">${c.replyTo}</div>`:''}<div class="comment-text">${c.text}</div>${CU?`<button onclick="replyToComment(${p.id},${c.id},'${ca.name.replace(/'/g,"\\'")}')" style="font-size:10px;color:var(--text3);background:none;border:none;cursor:pointer;padding:2px 0;font-family:inherit">Répondre</button>`:''}</div>${dc}</div>`;}).join('')}
     ${CU?`<div class="comment-input-row">${avatarHTML(CU,24)}<input class="comment-input" id="ci-${p.id}" placeholder="Écrire un commentaire…" onkeydown="if(event.key==='Enter')sendCom(${p.id})"><button class="comment-send" onclick="sendCom(${p.id})"><i class="ti ti-send"></i></button></div>`:''}
   </div>`:'';
   const eventInfo=p.cat==='evenement'&&p.eventDate?`<div style="font-size:11px;color:#185FA5;margin-top:2px;display:flex;align-items:center;gap:3px"><i class="ti ti-calendar-event" style="font-size:11px"></i> Événement le ${new Date(p.eventDate).toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'})}</div>`:'';
@@ -1186,9 +1188,37 @@ function renderPosts(){
   const html=filtered.length?filtered.map(renderPost).join(''):'<div class="card" style="text-align:center;padding:20px;color:var(--text2)"><i class="ti ti-search-off" style="font-size:24px;display:block;margin-bottom:6px;opacity:.3"></i><div style="font-size:13px">Aucun post trouvé</div><div style="font-size:11px;margin-top:3px">Essaie d\'autres filtres</div></div>';
   document.getElementById('feed-posts').innerHTML=html;
 }
-async function togLike(id){if(!CU){showScreen('register');return;}const p=POSTS.find(x=>x.id===id);if(!p)return;const res=await api('/likes','POST',{userId:CU.id,postId:id});p.liked=res.liked;p.likes+=res.liked?1:-1;document.getElementById('post-'+id).outerHTML=renderPost(p);}
+async function togReact(id,type){
+  if(!CU){showScreen('register');return;}
+  const p=POSTS.find(x=>x.id===id);if(!p)return;
+  if(!p.reactions)p.reactions={};if(!p.myReactions)p.myReactions=[];
+  const res=await api('/reactions','POST',{userId:CU.id,postId:id,type});
+  if(res.toggled){
+    p.reactions[type]=(p.reactions[type]||0)+1;
+    p.myReactions.push(type);
+  }else{
+    p.reactions[type]=Math.max((p.reactions[type]||1)-1,0);
+    p.myReactions=p.myReactions.filter(t=>t!==type);
+  }
+  document.getElementById('post-'+id).outerHTML=renderPost(p);
+}
 function togCom(id){if(!CU){showScreen('register');return;}const p=POSTS.find(x=>x.id===id);if(!p)return;p.showComments=!p.showComments;document.getElementById('post-'+id).outerHTML=renderPost(p);}
-async function sendCom(pid){const inp=document.getElementById('ci-'+pid);if(!inp||!CU)return;const txt=inp.value.trim();if(!txt)return;const p=POSTS.find(x=>x.id===pid);if(!p)return;await api('/comments','POST',{postId:pid,authorId:CU.id,text:txt});p.comments.push({id:Date.now(),authorId:CU.id,text:txt,time:'À l\'instant'});document.getElementById('post-'+pid).outerHTML=renderPost(p);}
+let replyContext={};
+function replyToComment(pid,cid,name){
+  replyContext[pid]={cid,name};
+  const inp=document.getElementById('ci-'+pid);
+  if(inp){inp.placeholder=`Répondre à ${name}…`;inp.focus();}
+}
+async function sendCom(pid){
+  const inp=document.getElementById('ci-'+pid);if(!inp||!CU)return;const txt=inp.value.trim();if(!txt)return;
+  const p=POSTS.find(x=>x.id===pid);if(!p)return;
+  const reply=replyContext[pid];
+  const replyTo=reply?`@${reply.name}: ${txt.substring(0,30)}`:undefined;
+  await api('/comments','POST',{postId:pid,authorId:CU.id,text:reply?`@${reply.name} ${txt}`:txt});
+  p.comments.push({id:Date.now(),authorId:CU.id,text:reply?`@${reply.name} ${txt}`:txt,time:'À l\'instant',replyTo:reply?reply.name:undefined});
+  delete replyContext[pid];
+  document.getElementById('post-'+pid).outerHTML=renderPost(p);
+}
 async function delPost(id){if(!canMod())return;await api('/posts/'+id,'DELETE');POSTS=POSTS.filter(p=>p.id!==id);renderPosts();}
 async function delCom(pid,cid){if(!canMod())return;await api('/comments/'+cid,'DELETE');const p=POSTS.find(x=>x.id===pid);if(!p)return;p.comments=p.comments.filter(c=>c.id!==cid);document.getElementById('post-'+pid).outerHTML=renderPost(p);}
 function editPost(id){const p=POSTS.find(x=>x.id===id);if(!p||!CU||CU.id!==p.authorId)return;p.editing=true;document.getElementById('post-'+id).outerHTML=renderPost(p);}

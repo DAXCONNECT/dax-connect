@@ -80,8 +80,11 @@ export default {
           p.sondage = p.sondage ? JSON.parse(p.sondage) : null;
           const comments = await DB.prepare('SELECT * FROM comments WHERE postId=? ORDER BY createdAt ASC').bind(p.id).all();
           p.comments = comments.results;
-          const likeCount = await DB.prepare('SELECT COUNT(*) as c FROM likes WHERE postId=?').bind(p.id).first();
-          p.likes = likeCount.c;
+          const reactions = await DB.prepare('SELECT type, COUNT(*) as c FROM likes WHERE postId=? GROUP BY type').bind(p.id).all();
+          p.reactions={};
+          for(const r of reactions.results) p.reactions[r.type]=r.c;
+          const myReactions = await DB.prepare('SELECT type FROM likes WHERE postId=? AND userId=?').bind(p.id, url.searchParams.get('userId')||'').all();
+          p.myReactions=myReactions.results.map(r=>r.type);
         }
         return json({ posts: posts.results }, 200, h);
       }
@@ -124,24 +127,17 @@ export default {
         return json({ ok: true }, 200, h);
       }
 
-      // ---- LIKES ----
-      if (request.method === 'POST' && path === '/likes') {
+      // ---- REACTIONS ----
+      if (request.method === 'POST' && path === '/reactions') {
         const b = await request.json();
-        const existing = await DB.prepare('SELECT * FROM likes WHERE userId=? AND postId=?').bind(b.userId, b.postId).first();
+        const existing = await DB.prepare('SELECT * FROM likes WHERE userId=? AND postId=? AND type=?').bind(b.userId, b.postId, b.type).first();
         if (existing) {
-          await DB.prepare('DELETE FROM likes WHERE userId=? AND postId=?').bind(b.userId, b.postId).run();
-          return json({ liked: false }, 200, h);
+          await DB.prepare('DELETE FROM likes WHERE userId=? AND postId=? AND type=?').bind(b.userId, b.postId, b.type).run();
+          return json({ toggled: false }, 200, h);
         } else {
-          await DB.prepare('INSERT INTO likes (userId,postId) VALUES (?,?)').bind(b.userId, b.postId).run();
-          return json({ liked: true }, 200, h);
+          await DB.prepare('INSERT INTO likes (userId,postId,type) VALUES (?,?,?)').bind(b.userId, b.postId, b.type).run();
+          return json({ toggled: true }, 200, h);
         }
-      }
-
-      if (request.method === 'GET' && path.startsWith('/likes/')) {
-        const pid = parseInt(path.split('/')[2]);
-        const userId = url.searchParams.get('userId');
-        const liked = userId ? await DB.prepare('SELECT * FROM likes WHERE userId=? AND postId=?').bind(userId, pid).first() : null;
-        return json({ liked: !!liked }, 200, h);
       }
 
       // ---- CONVERSATIONS & MESSAGES ----
