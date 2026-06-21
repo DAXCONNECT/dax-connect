@@ -308,6 +308,23 @@ input[type=file]{display:none}
 .pm-name{font-size:13px;font-weight:600;color:var(--text)}
 .pm-role{font-size:10px;color:var(--text2)}
 .pm-logout{width:100%;padding:7px 10px;border-radius:var(--radius);border:0.5px solid var(--red-border);background:transparent;color:var(--red);font-size:12px;font-family:inherit;cursor:pointer;display:flex;align-items:center;gap:5px;margin-top:4px}
+.compose-trigger{background:var(--bg);border:0.5px solid var(--border);border-radius:var(--radius-lg);padding:10px 13px;display:flex;align-items:center;gap:9px;cursor:pointer}
+.compose-trigger:hover{border-color:var(--border2)}
+.compose-trigger-text{flex:1;font-size:13px;color:var(--text3);padding:6px 0}
+.compose-trigger-actions{display:flex;gap:2px}
+.compose-trigger-btn{font-size:11px;padding:4px 8px;border-radius:var(--radius);border:0.5px solid var(--border);background:transparent;cursor:pointer;font-family:inherit;color:var(--text2);display:flex;align-items:center;gap:3px}
+.compose-trigger-btn:hover{background:var(--bg3)}
+.pub-modal{background:var(--bg);border-radius:var(--radius-lg);border:0.5px solid var(--border);width:100%;max-width:520px;max-height:90vh;overflow-y:auto;display:flex;flex-direction:column}
+.pub-modal-header{padding:12px 16px;border-bottom:0.5px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.pub-modal-header h3{font-size:15px;font-weight:600;color:var(--text);display:flex;align-items:center;gap:6px}
+.pub-modal-close{width:28px;height:28px;border-radius:50%;border:none;background:transparent;cursor:pointer;font-size:16px;color:var(--text2);display:flex;align-items:center;justify-content:center}
+.pub-modal-close:hover{background:var(--bg3)}
+.pub-modal-body{padding:14px 16px;display:flex;flex-direction:column;gap:10px}
+.pub-modal-footer{padding:10px 16px;border-top:0.5px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.scope-picker{display:flex;gap:5px;flex-wrap:wrap}
+.scope-btn{font-size:11px;padding:4px 10px;border-radius:20px;border:0.5px solid var(--border);background:transparent;cursor:pointer;font-family:inherit;color:var(--text2);display:flex;align-items:center;gap:3px}
+.scope-btn:hover{background:var(--bg3)}
+.scope-btn.active{border-color:var(--red);background:#FCEBEB;color:var(--red);font-weight:500;border-width:1.5px}
 .pm-logout:hover{background:#FCEBEB}
 </style>
 </head>
@@ -582,6 +599,48 @@ input[type=file]{display:none}
   </div>
 </div>
 
+<div class="modal-overlay" id="modal-publish" style="display:none">
+  <div class="pub-modal">
+    <div class="pub-modal-header">
+      <h3><i class="ti ti-pencil-plus" style="color:var(--red)"></i> Nouvelle publication</h3>
+      <button class="pub-modal-close" onclick="closePublishModal()"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="pub-modal-body">
+      <div style="display:flex;align-items:center;gap:8px" id="pub-user-info"></div>
+      <div>
+        <label style="font-size:11px;font-weight:500;color:var(--text2);margin-bottom:4px;display:block"><i class="ti ti-map-pin" style="font-size:11px"></i> Visible par</label>
+        <div class="scope-picker" id="scope-picker"></div>
+      </div>
+      <div>
+        <label style="font-size:11px;font-weight:500;color:var(--text2);margin-bottom:4px;display:block"><i class="ti ti-tag" style="font-size:11px"></i> Thème</label>
+        <div class="cat-picker" id="pub-cat-picker"></div>
+      </div>
+      <textarea class="compose-input" id="pub-text" placeholder="Quoi de neuf à Dax ?" style="min-height:80px"></textarea>
+      <div class="event-date-field" id="pub-event-date" style="display:none">
+        <label><i class="ti ti-calendar-event" style="font-size:12px"></i> Date de l'événement</label>
+        <input type="date" id="pub-event-input" min="">
+      </div>
+      <div class="sondage-builder" id="pub-sondage" style="display:none">
+        <label style="font-size:12px;font-weight:500;color:var(--text2);margin-bottom:5px;display:block"><i class="ti ti-chart-bar" style="font-size:12px"></i> Options du sondage</label>
+        <div id="pub-sondage-opts"></div>
+        <button class="add-opt" onclick="addSondageOpt()"><i class="ti ti-plus" style="font-size:11px"></i> Ajouter une option</button>
+      </div>
+      <div id="pub-mprev" class="media-prev"></div>
+      <div id="pub-ai-st" class="ai-status"></div>
+    </div>
+    <div class="pub-modal-footer">
+      <div style="display:flex;gap:4px;flex-wrap:wrap">
+        <button class="mbtn" onclick="document.getElementById('pub-pi').click()"><i class="ti ti-photo" style="font-size:13px"></i> Photo</button>
+        <button class="mbtn" onclick="document.getElementById('pub-vi').click()"><i class="ti ti-video" style="font-size:13px"></i> Vidéo</button>
+        <button class="mbtn ai-btn" id="pub-ortho-btn" onclick="correctOrtho()"><i class="ti ti-wand" style="font-size:13px"></i> Corriger</button>
+      </div>
+      <button class="post-btn" id="pub-btn" onclick="publishPost()">Publier</button>
+    </div>
+    <input type="file" id="pub-pi" accept="image/*" multiple onchange="addMedia(this,'image')" style="display:none">
+    <input type="file" id="pub-vi" accept="video/*" multiple onchange="addMedia(this,'video')" style="display:none">
+  </div>
+</div>
+
 <script>
 const DAX_POSTCODES=['40100'];
 const ANTHROPIC_API_KEY=''; // ← Mets ta clé API ici (sk-ant-...)
@@ -743,6 +802,8 @@ function updateAvInitials(){
 /* ---- COMPOSE ---- */
 function renderFeed(){renderCompose();renderGuestBanner();renderPosts();renderSidebar();}
 
+let postScope='ville';
+
 function renderCompose(){
   const z=document.getElementById('compose-zone');
   if(!CU){
@@ -752,49 +813,57 @@ function renderCompose(){
       <button class="gbtn gbtn-f" style="background:var(--red);color:#fff;border:none;font-size:11px">S'inscrire</button>
     </div>`;return;
   }
-  const pills=CATS.map(c=>`<button class="cat-pill${selectedCat===c.id?' sel-'+c.id:''}" onclick="selCat('${c.id}')"><i class="ti ${c.icon}" style="font-size:11px"></i>${c.label}</button>`).join('');
-  z.innerHTML=`<div class="card">
-    <div style="display:flex;gap:8px;align-items:flex-start">
-      ${avatarHTML(CU,32)}
-      <textarea class="compose-input" id="ctxt" placeholder="Quoi de neuf à Dax ?"></textarea>
+  z.innerHTML=`<div class="compose-trigger" onclick="openPublishModal()">
+    ${avatarHTML(CU,32)}
+    <div class="compose-trigger-text">Quoi de neuf à Dax ?</div>
+    <div class="compose-trigger-actions">
+      <span class="compose-trigger-btn"><i class="ti ti-photo" style="font-size:12px;color:#3B6D11"></i></span>
+      <span class="compose-trigger-btn"><i class="ti ti-video" style="font-size:12px;color:#185FA5"></i></span>
     </div>
-    <div class="cat-picker">${pills}</div>
-    <div class="event-date-field" id="event-date-field">
-      <label><i class="ti ti-calendar-event" style="font-size:12px"></i> Date de l'événement</label>
-      <input type="date" id="event-date-input" min="${new Date().toISOString().split('T')[0]}">
-    </div>
-    <div class="sondage-builder" id="sondage-builder">
-      <label style="font-size:12px;font-weight:500;color:var(--text2);margin-bottom:5px;display:block"><i class="ti ti-chart-bar" style="font-size:12px"></i> Options du sondage</label>
-      <div id="sondage-opts-list"></div>
-      <button class="add-opt" onclick="addSondageOpt()"><i class="ti ti-plus" style="font-size:11px"></i> Ajouter une option</button>
-    </div>
-    <div id="mprev" class="media-prev"></div>
-    <div id="ai-st" class="ai-status"></div>
-    <div class="compose-bar">
-      <div style="display:flex;gap:4px;flex-wrap:wrap">
-        <button class="mbtn" onclick="document.getElementById('pi').click()"><i class="ti ti-photo" style="font-size:13px"></i> Photo</button>
-        <button class="mbtn" onclick="document.getElementById('vi').click()"><i class="ti ti-video" style="font-size:13px"></i> Vidéo</button>
-        <button class="mbtn ai-btn" id="ortho-btn" onclick="correctOrtho()"><i class="ti ti-wand" style="font-size:13px"></i> Corriger</button>
-      </div>
-      <button class="post-btn" id="pub-btn" onclick="publishPost()">Publier</button>
-    </div>
-    <input type="file" id="pi" accept="image/*" multiple onchange="addMedia(this,'image')">
-    <input type="file" id="vi" accept="video/*" multiple onchange="addMedia(this,'video')">
   </div>`;
-  renderSondageOpts();
+}
+
+function openPublishModal(){
+  if(!CU)return;
+  selectedCat='info';postScope='ville';
+  pendingMedia.length=0;sondageOpts.splice(0,sondageOpts.length,'','');
+  document.getElementById('pub-user-info').innerHTML=`${avatarHTML(CU,36)}<div><div style="font-size:13px;font-weight:600">${CU.name}</div><div style="font-size:11px;color:var(--text2)">${CU.quartier||'Dax'}</div></div>`;
+  const quartiers=['ville',...QUARTIERS_GEO.map(q=>q.name)];
+  document.getElementById('scope-picker').innerHTML=quartiers.map(q=>`<button class="scope-btn${postScope===q?' active':''}" onclick="setScope('${q}')"><i class="ti ${q==='ville'?'ti-building-community':'ti-map-pin'}" style="font-size:11px"></i>${q==='ville'?'Tout Dax':q}</button>`).join('');
+  renderPubCats();
+  document.getElementById('pub-text').value='';
+  document.getElementById('pub-event-input').min=new Date().toISOString().split('T')[0];
+  document.getElementById('pub-event-date').style.display='none';
+  document.getElementById('pub-sondage').style.display='none';
+  renderPubMedia();
+  document.getElementById('modal-publish').style.display='flex';
+  setTimeout(()=>document.getElementById('pub-text').focus(),100);
+}
+function closePublishModal(){document.getElementById('modal-publish').style.display='none';pendingMedia.length=0;}
+
+function setScope(s){
+  postScope=s;
+  document.querySelectorAll('#scope-picker .scope-btn').forEach(b=>{
+    const val=b.textContent.trim()==='Tout Dax'?'ville':b.textContent.trim();
+    b.classList.toggle('active',val===s);
+  });
+}
+
+function renderPubCats(){
+  document.getElementById('pub-cat-picker').innerHTML=CATS.map(c=>`<button class="cat-pill${selectedCat===c.id?' sel-'+c.id:''}" onclick="selCat('${c.id}')"><i class="ti ${c.icon}" style="font-size:11px"></i>${c.label}</button>`).join('');
 }
 
 function selCat(id){
   selectedCat=id;
-  document.querySelectorAll('.cat-pill').forEach(p=>{const m=p.getAttribute('onclick').match(/'(\w+)'/);if(m)p.className='cat-pill'+(m[1]===id?' sel-'+id:'');});
-  const edf=document.getElementById('event-date-field');
-  const sb=document.getElementById('sondage-builder');
+  renderPubCats();
+  const edf=document.getElementById('pub-event-date');
+  const sb=document.getElementById('pub-sondage');
   if(edf)edf.style.display=id==='evenement'?'block':'none';
   if(sb)sb.style.display=id==='sondage'?'block':'none';
 }
 
 function renderSondageOpts(){
-  const list=document.getElementById('sondage-opts-list');if(!list)return;
+  const list=document.getElementById('pub-sondage-opts');if(!list)return;
   list.innerHTML=sondageOpts.map((o,i)=>`<div class="sondage-opt-row">
     <input class="sondage-opt-input" placeholder="Option ${i+1}" value="${o}" oninput="sondageOpts[${i}]=this.value">
     ${sondageOpts.length>2?`<button class="rm-opt" onclick="rmSondageOpt(${i})"><i class="ti ti-x" style="font-size:10px"></i></button>`:''}
@@ -805,8 +874,8 @@ function rmSondageOpt(i){sondageOpts.splice(i,1);renderSondageOpts();}
 
 /* ---- CORRECTION ORTHO IA ---- */
 async function correctOrtho(){
-  const ta=document.getElementById('ctxt');if(!ta||!ta.value.trim())return;
-  const btn=document.getElementById('ortho-btn');
+  const ta=document.getElementById('pub-text');if(!ta||!ta.value.trim())return;
+  const btn=document.getElementById('pub-ortho-btn');
   btn.innerHTML='<span class="spinner-sm"></span> IA…';btn.disabled=true;
   try{
     const corrected=await callClaude([{role:'user',content:`Corrige uniquement les fautes d'orthographe et de grammaire dans ce texte français. Conserve le style, le ton et le contenu exactement. Réponds UNIQUEMENT avec le texte corrigé, rien d'autre:\n\n${ta.value}`}],500)||ta.value;
@@ -832,14 +901,15 @@ async function checkAI(item){
   renderPreview();updatePubBtn();
 }
 function toB64(f){return new Promise((r,j)=>{const fr=new FileReader();fr.onload=()=>r(fr.result.split(',')[1]);fr.onerror=j;fr.readAsDataURL(f);});}
+function renderPubMedia(){renderPreview();}
 function renderPreview(){
-  const z=document.getElementById('mprev');if(!z)return;
+  const z=document.getElementById('pub-mprev');if(!z)return;
   z.innerHTML=pendingMedia.map((m,i)=>{
     let ovl='',badge='';
     if(m.type==='image'){if(m.aiState==='checking')ovl=`<div class="ai-overlay"><span class="spinner-sm" style="border-top-color:#fff"></span><span style="font-size:9px">IA…</span></div>`;else if(m.aiState==='ok')badge=`<span class="ai-ok">✓</span>`;else badge=`<span class="ai-warn">✗</span>`;}
     return`<div class="media-thumb">${m.type==='image'?`<img src="${m.url}" alt="">`:` <video src="${m.url}" muted></video>`}${ovl}${badge}<button class="rm-media" onclick="rmMedia(${i})"><i class="ti ti-x" style="font-size:8px"></i></button></div>`;
   }).join('');
-  const el=document.getElementById('ai-st');if(!el)return;
+  const el=document.getElementById('pub-ai-st');if(!el)return;
   const chk=pendingMedia.some(m=>m.aiState==='checking'),blk=pendingMedia.filter(m=>m.aiState==='warn');
   if(chk){el.className='ai-status checking';el.innerHTML=`<span class="spinner-sm"></span> Vérification IA…`;}
   else if(blk.length){el.className='ai-status warn';el.innerHTML=`<i class="ti ti-alert-triangle" style="font-size:12px"></i> ${blk.length} photo(s) refusée(s) : ${blk[0].aiMsg}. Supprimez-les.`;}
@@ -866,28 +936,38 @@ function mediaLayout(media){
 
 function sondageHTML(p){
   if(!p.sondage)return'';
+  if(!p.sondage.voters)p.sondage.voters={};
   const total=p.sondage.votes.reduce((a,b)=>a+b,0);
+  const myVote=CU?p.sondage.voters[CU.id]:undefined;
+  const hasVoted=myVote!==undefined;
   const opts=p.sondage.opts.map((o,i)=>{
     const pct=total?Math.round(p.sondage.votes[i]/total*100):0;
-    const voted=p.sondage.voted===i;
-    const canVote=CU&&p.sondage.voted===null;
-    return`<div class="sondage-opt${voted?' voted':''}" onclick="${canVote?`voteSondage(${p.id},${i})`:''}" style="${!canVote&&!voted?'cursor:default':''}">
+    const isMyVote=myVote===i;
+    return`<div class="sondage-opt${isMyVote?' voted':''}" onclick="${CU?`voteSondage(${p.id},${i})`:''}" style="${CU?'cursor:pointer':'cursor:default'}">
       <div class="sondage-bar-wrap">
         <div class="sondage-label">${o}</div>
-        ${p.sondage.voted!==null?`<div class="sondage-bar"><div class="sondage-fill" style="width:${pct}%"></div></div>`:''}
+        ${hasVoted?`<div class="sondage-bar"><div class="sondage-fill" style="width:${pct}%"></div></div>`:''}
       </div>
-      ${p.sondage.voted!==null?`<span class="sondage-pct">${pct}%</span>`:''}
-      ${voted?'<i class="ti ti-check" style="font-size:13px;color:var(--red)"></i>':''}
+      ${hasVoted?`<span class="sondage-pct">${pct}%</span>`:''}
+      ${isMyVote?'<i class="ti ti-check" style="font-size:13px;color:var(--red)"></i>':''}
     </div>`;
   }).join('');
-  return`<div class="sondage-zone">${opts}<div class="sondage-total">${total} vote${total!==1?'s':''} · ${CU&&p.sondage.voted===null?'Clique pour voter':'Résultats'}</div></div>`;
+  return`<div class="sondage-zone">${opts}<div class="sondage-total">${total} vote${total!==1?'s':''} · ${CU&&!hasVoted?'Clique pour voter':CU?'Clique pour changer':''}</div></div>`;
 }
 
 function voteSondage(pid,optIdx){
   if(!CU)return;
   const p=POSTS.find(x=>x.id===pid);
-  if(!p||!p.sondage||p.sondage.voted!==null)return;
-  p.sondage.votes[optIdx]++;p.sondage.voted=optIdx;saveData();
+  if(!p||!p.sondage)return;
+  if(!p.sondage.voters)p.sondage.voters={};
+  const prev=p.sondage.voters[CU.id];
+  if(prev!==undefined){
+    p.sondage.votes[prev]--;
+    if(prev===optIdx){delete p.sondage.voters[CU.id];saveData();document.getElementById('post-'+pid).outerHTML=renderPost(p);return;}
+  }
+  p.sondage.votes[optIdx]++;
+  p.sondage.voters[CU.id]=optIdx;
+  saveData();
   document.getElementById('post-'+pid).outerHTML=renderPost(p);
 }
 
@@ -918,7 +998,7 @@ function renderPost(p){
       ${avatarHTML(au,32)}
       <div style="flex:1;min-width:0">
         <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap"><span class="post-name">${au.name}</span>${rb(au.role)}<span class="post-cat cat-${p.cat}"><i class="ti ${meta.icon}" style="font-size:10px"></i>${meta.label}</span></div>
-        <div class="post-sub"><i class="ti ti-map-pin" style="font-size:10px"></i> ${getU(p.authorId).quartier||'Dax'} · ${p.time}</div>
+        <div class="post-sub"><i class="ti ti-map-pin" style="font-size:10px"></i> ${p.scope&&p.scope!=='Tout Dax'?p.scope:getU(p.authorId).quartier||'Dax'} · ${p.scope==='Tout Dax'?'Tout Dax · ':''}${p.time}</div>
         ${eventInfo}
         <div class="post-expiry${exp.soon?' soon':''}"><i class="ti ti-clock" style="font-size:10px"></i>${exp.label}</div>
       </div>
@@ -942,20 +1022,21 @@ function saveEdit(id){const p=POSTS.find(x=>x.id===id);if(!p)return;const ta=doc
 function cancelEdit(id){const p=POSTS.find(x=>x.id===id);if(!p)return;p.editing=false;document.getElementById('post-'+id).outerHTML=renderPost(p);}
 
 function publishPost(){
-  const txt=(document.getElementById('ctxt')||{value:''}).value.trim();
+  const txt=(document.getElementById('pub-text')||{value:''}).value.trim();
   if(!txt&&!pendingMedia.length&&selectedCat!=='sondage')return;
   if(pendingMedia.some(m=>m.aiState==='warn'||m.aiState==='checking'))return;
   let sondage=null;
   if(selectedCat==='sondage'){
     const validOpts=sondageOpts.filter(o=>o.trim());
     if(validOpts.length<2){alert('Ajoute au moins 2 options pour le sondage.');return;}
-    sondage={opts:validOpts,votes:new Array(validOpts.length).fill(0),voted:null};
+    sondage={opts:validOpts,votes:new Array(validOpts.length).fill(0),voters:{}};
   }
-  const edInput=document.getElementById('event-date-input');
+  const edInput=document.getElementById('pub-event-input');
   const eventDate=selectedCat==='evenement'&&edInput&&edInput.value?new Date(edInput.value):null;
-  POSTS.unshift({id:Date.now(),authorId:CU.id,rue:CU.quartier||'Dax',time:'À l\'instant',cat:selectedCat,text:txt,media:pendingMedia.map(m=>({type:m.type,url:m.url})),likes:0,liked:false,comments:[],showComments:false,createdAt:new Date(),eventDate,sondage});
+  const scope=postScope==='ville'?'Tout Dax':postScope;
+  POSTS.unshift({id:Date.now(),authorId:CU.id,rue:CU.quartier||'Dax',time:'À l\'instant',cat:selectedCat,text:txt,media:pendingMedia.map(m=>({type:m.type,url:m.url})),likes:0,liked:false,comments:[],showComments:false,createdAt:new Date(),eventDate,sondage,scope});
   pendingMedia.length=0;sondageOpts.splice(0,sondageOpts.length,'','');
-  saveData();renderFeed();
+  closePublishModal();saveData();renderFeed();
 }
 
 /* ---- SIDEBAR ---- */
