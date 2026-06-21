@@ -7,6 +7,7 @@
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
+img,video{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;pointer-events:auto}
 html,body{overflow-x:hidden;width:100%}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f3f2ee;color:#1a1a1a;min-height:100vh;overflow-x:hidden}
 :root{--red:#A32D2D;--red-dark:#791F1F;--red-light:#FCEBEB;--red-border:#F09595;--bg:#fff;--bg2:#f3f2ee;--bg3:#f8f7f4;--border:rgba(0,0,0,0.12);--border2:rgba(0,0,0,0.22);--text:#1a1a1a;--text2:#6b6b6b;--text3:#999;--radius:8px;--radius-lg:12px}
@@ -1817,6 +1818,13 @@ function enterFeedSilent(){
   updateUnreadBadge();
   navTo('feed');
 }
+
+document.addEventListener('contextmenu',function(e){
+  if(e.target.tagName==='IMG'||e.target.tagName==='VIDEO')e.preventDefault();
+});
+document.addEventListener('dragstart',function(e){
+  if(e.target.tagName==='IMG'||e.target.tagName==='VIDEO')e.preventDefault();
+});
 
 /* INIT */
 (async function(){
