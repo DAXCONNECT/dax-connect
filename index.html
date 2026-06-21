@@ -890,7 +890,7 @@ function navTo(name){
 function showScreen(n){
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('visible'));
   const s=document.getElementById('screen-'+n);if(s)s.classList.add('visible');
-  if(n==='feed'){autoExpire();renderFeed();}
+  if(n==='feed'){autoExpire();filterQuartier='tous';filterCat='tous';filterSearch='';const sb=document.getElementById('search-bar');if(sb)sb.classList.remove('open');const si=document.getElementById('search-input');if(si)si.value='';renderFeed();}
   if(n==='info')renderInfo();
   if(n==='mp')renderMP();
   if(n==='membres')renderMembres();
