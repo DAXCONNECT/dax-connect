@@ -398,8 +398,17 @@ input[type=file]{display:none}
 
   <div class="screen" id="screen-mp">
     <div class="card" style="padding:0;overflow:hidden">
-      <div style="padding:10px 13px;border-bottom:0.5px solid var(--border);display:flex;align-items:center;gap:7px"><i class="ti ti-message" style="color:var(--red);font-size:17px"></i><span style="font-size:14px;font-weight:600">Messages privés</span></div>
-      <div class="mp-body"><div class="mp-sidebar" id="mp-sidebar"></div><div class="mp-chat-area" id="mp-chat-area"><div class="mp-empty"><i class="ti ti-message-2"></i><span>Sélectionne une conversation</span></div></div></div>
+      <div style="padding:10px 13px;border-bottom:0.5px solid var(--border);display:flex;align-items:center;gap:7px">
+        <i class="ti ti-message" style="color:var(--red);font-size:17px"></i>
+        <span style="font-size:14px;font-weight:600">Messages privés</span>
+        <div style="margin-left:auto;display:flex;gap:4px">
+          <button class="filter-btn" id="mp-tab-conv" onclick="setMPTab('conv')" style="font-size:11px"><i class="ti ti-messages" style="font-size:11px"></i> Conversations</button>
+          <button class="filter-btn" id="mp-tab-saved" onclick="setMPTab('saved')" style="font-size:11px"><i class="ti ti-bookmark" style="font-size:11px"></i> Sauvegardés</button>
+        </div>
+      </div>
+      <div id="mp-content">
+        <div class="mp-body"><div class="mp-sidebar" id="mp-sidebar"></div><div class="mp-chat-area" id="mp-chat-area"><div class="mp-empty"><i class="ti ti-message-2"></i><span>Sélectionne une conversation</span></div></div></div>
+      </div>
     </div>
   </div>
 
@@ -1158,11 +1167,29 @@ function renderSidebar(){
 function renderRegles(){document.getElementById('regles-list').innerHTML=REGLES.map((r,i)=>`<div class="regle"><div class="regle-num">${i+1}</div><div><div class="regle-title">${r.t}</div><div class="regle-desc">${r.d}</div></div></div>`).join('');}
 
 /* ---- MP ---- */
-function openMP(toId){if(!CU){showScreen('register');return;}if(toId===CU.id)return;let c=CONVS.find(x=>x.withId===toId);if(!c){c={id:'c'+Date.now(),withId:toId,unread:false,messages:[]};CONVS.push(c);}activeConvId=c.id;navTo('mp');}
+let mpTab='conv',savedMessages=[];
+
+function loadSaved(){try{const s=localStorage.getItem('dc_saved');if(s)savedMessages=JSON.parse(s);}catch(e){}}
+function saveSaved(){localStorage.setItem('dc_saved',JSON.stringify(savedMessages));}
+
+function openMP(toId){if(!CU){showScreen('register');return;}if(toId===CU.id)return;let c=CONVS.find(x=>x.withId===toId);if(!c){c={id:'c'+Date.now(),withId:toId,unread:false,messages:[]};CONVS.push(c);}activeConvId=c.id;mpTab='conv';navTo('mp');}
+
+function setMPTab(tab){mpTab=tab;renderMP();}
+
 function renderMP(){
   if(!CU){showScreen('register');return;}
+  loadSaved();
+  const tabConv=document.getElementById('mp-tab-conv');
+  const tabSaved=document.getElementById('mp-tab-saved');
+  if(tabConv)tabConv.classList.toggle('active',mpTab==='conv');
+  if(tabSaved)tabSaved.classList.toggle('active',mpTab==='saved');
+
+  if(mpTab==='saved'){renderSavedMessages();return;}
+
   const unread=CONVS.filter(c=>c.unread).length;
   const dot=document.getElementById('mp-dot');if(dot){dot.style.display=unread?'flex':'none';dot.textContent=unread;}
+  const content=document.getElementById('mp-content');
+  content.innerHTML=`<div class="mp-body"><div class="mp-sidebar" id="mp-sidebar"></div><div class="mp-chat-area" id="mp-chat-area"><div class="mp-empty"><i class="ti ti-message-2"></i><span>Sélectionne une conversation</span></div></div></div>`;
   document.getElementById('mp-sidebar').innerHTML=CONVS.map(c=>{const o=getU(c.withId),last=c.messages[c.messages.length-1];
     return`<div class="mp-conv${activeConvId===c.id?' active':''}" onclick="selConv('${c.id}')">
       <div style="position:relative;flex-shrink:0">${avatarHTML(o,28)}${c.unread?'<div style="position:absolute;top:-1px;right:-1px;width:7px;height:7px;border-radius:50%;background:var(--red);border:1px solid #fff"></div>':''}</div>
@@ -1174,8 +1201,8 @@ function selConv(id){activeConvId=id;const c=CONVS.find(x=>x.id===id);if(c){c.un
 function renderChat(conv){
   const o=getU(conv.withId);
   document.getElementById('mp-chat-area').innerHTML=`
-    <div class="mp-chat-top">${avatarHTML(o,26)}<div><div style="font-size:13px;font-weight:600">${o.name}</div><div>${rb(o.role)}</div></div></div>
-    <div class="mp-messages" id="mp-msgs">${conv.messages.map(m=>{const mine=CU&&m.from===CU.id;return`<div class="msg-row ${mine?'mine':'theirs'}"><div class="msg-bubble ${mine?'mine':'theirs'}">${m.text}</div><span class="msg-time">${m.time}</span></div>`;}).join('')}</div>
+    <div class="mp-chat-top">${avatarHTML(o,26)}<div style="flex:1"><div style="font-size:13px;font-weight:600">${o.name}</div><div>${rb(o.role)}</div></div><button class="abtn ban" onclick="deleteConv('${conv.id}')" style="font-size:10px"><i class="ti ti-trash" style="font-size:10px"></i> Supprimer</button></div>
+    <div class="mp-messages" id="mp-msgs">${conv.messages.map((m,i)=>{const mine=CU&&m.from===CU.id;const isSaved=savedMessages.some(s=>s.convId===conv.id&&s.idx===i);return`<div class="msg-row ${mine?'mine':'theirs'}"><div class="msg-bubble ${mine?'mine':'theirs'}">${m.text}</div><div style="display:flex;align-items:center;gap:4px"><span class="msg-time">${m.time}</span><button onclick="saveMsg('${conv.id}',${i})" style="background:none;border:none;cursor:pointer;font-size:11px;color:${isSaved?'var(--red)':'var(--text3)'};padding:1px" title="${isSaved?'Déjà sauvegardé':'Sauvegarder'}"><i class="ti ti-bookmark${isSaved?'-filled':''}"></i></button><button onclick="deleteMsg('${conv.id}',${i})" style="background:none;border:none;cursor:pointer;font-size:11px;color:var(--text3);padding:1px" title="Supprimer"><i class="ti ti-trash"></i></button></div></div>`;}).join('')}</div>
     <div class="mp-input-row"><input class="mp-input" id="mp-inp" placeholder="Écrire à ${o.name}…" onkeydown="if(event.key==='Enter')sendMP('${conv.id}')"><button class="mp-send" onclick="sendMP('${conv.id}')"><i class="ti ti-send"></i></button></div>`;
   const msgs=document.getElementById('mp-msgs');if(msgs)msgs.scrollTop=msgs.scrollHeight;
 }
@@ -1184,6 +1211,47 @@ function sendMP(cid){
   if(!c||!inp||!CU)return;const txt=inp.value.trim();if(!txt)return;
   c.messages.push({from:CU.id,text:txt,time:'maintenant'});inp.value='';saveData();renderMP();
 }
+function saveMsg(convId,idx){
+  loadSaved();
+  const exists=savedMessages.findIndex(s=>s.convId===convId&&s.idx===idx);
+  if(exists>=0){savedMessages.splice(exists,1);}
+  else{
+    const c=CONVS.find(x=>x.id===convId);if(!c||!c.messages[idx])return;
+    const m=c.messages[idx];
+    savedMessages.push({convId,idx,from:m.from,text:m.text,time:m.time,withId:c.withId,savedAt:new Date().toISOString()});
+  }
+  saveSaved();renderMP();
+}
+function deleteMsg(convId,idx){
+  const c=CONVS.find(x=>x.id===convId);if(!c)return;
+  c.messages.splice(idx,1);
+  savedMessages=savedMessages.filter(s=>!(s.convId===convId&&s.idx===idx)).map(s=>{if(s.convId===convId&&s.idx>idx)s.idx--;return s;});
+  saveSaved();saveData();renderMP();
+}
+function deleteConv(convId){
+  CONVS.splice(CONVS.findIndex(c=>c.id===convId),1);
+  savedMessages=savedMessages.filter(s=>s.convId!==convId);
+  activeConvId=null;saveSaved();saveData();renderMP();
+}
+function renderSavedMessages(){
+  loadSaved();
+  const content=document.getElementById('mp-content');
+  if(!savedMessages.length){
+    content.innerHTML=`<div style="padding:30px;text-align:center;color:var(--text2)"><i class="ti ti-bookmark" style="font-size:28px;display:block;margin-bottom:6px;opacity:.3"></i><div style="font-size:13px">Aucun message sauvegardé</div><div style="font-size:11px;margin-top:3px">Clique sur <i class="ti ti-bookmark"></i> à côté d'un message pour le sauvegarder</div></div>`;
+    return;
+  }
+  content.innerHTML=`<div style="padding:10px;display:flex;flex-direction:column;gap:6px">${savedMessages.map((s,i)=>{
+    const fromU=getU(s.from);const withU=getU(s.withId);
+    return`<div class="card" style="padding:9px 11px">
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">${avatarHTML(fromU,22)}<span style="font-size:12px;font-weight:600">${fromU.name}</span><span style="font-size:10px;color:var(--text2)">→ ${withU.name}</span><span style="font-size:9px;color:var(--text3);margin-left:auto">${s.time}</span></div>
+      <div style="font-size:12px;color:var(--text);line-height:1.4">${s.text}</div>
+      <div style="display:flex;justify-content:flex-end;gap:4px;margin-top:4px">
+        <button class="abtn" onclick="unsaveMsg(${i})" style="font-size:10px"><i class="ti ti-bookmark-off" style="font-size:10px"></i> Retirer</button>
+      </div>
+    </div>`;
+  }).join('')}</div>`;
+}
+function unsaveMsg(i){savedMessages.splice(i,1);saveSaved();renderMP();}
 
 /* ---- MEMBRES ---- */
 function renderMembres(){
@@ -1672,6 +1740,7 @@ function enterFeedSilent(){
 
 /* INIT */
 loadData();
+loadSaved();
 initUsers();
 autoLogin();
 initCropper();
